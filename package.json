@@ -1,0 +1,25 @@
+{
+  "name": "class-check",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline-first dormitory check-in assistant",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node tests/run-static-tests.mjs",
+    "check": "npm run test && npm run build",
+    "android:assets": "npm run build -- --outDir dist-android && powershell -ExecutionPolicy Bypass -File android/sync-web-assets.ps1"
+  },
+  "dependencies": {
+    "@tesseract.js-data/chi_sim": "^1.0.0",
+    "@tesseract.js-data/eng": "^1.0.0",
+    "lucide": "^0.468.0",
+    "tesseract.js": "^7.0.0",
+    "tesseract.js-core": "^7.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
