@@ -29,6 +29,7 @@ const STATUS_META = {
 
 const VALID_ROUTES = new Set(['home', 'history', 'manage', 'commuter', 'room-select', 'attendance', 'export']);
 const VALID_STATUSES = new Set(Object.keys(STATUS_META));
+const UPDATE_MANIFEST_URL_MAX_LENGTH = 500;
 
 const state = {
   route: 'home',
@@ -52,6 +53,9 @@ const state = {
   backupPreview: null,
   archiveDirectoryHandle: null,
   archiveDirectoryName: '',
+  updateManifestUrl: '',
+  updateStatus: { state: 'idle', message: '' },
+  updatePollTimer: null,
   ocrProgress: '',
   toastTimer: null,
   isBusy: false,
@@ -104,6 +108,46 @@ function normalizeRoomNo(value) {
 
 function normalizeClassName(value) {
   return String(value || '').trim() || '未分班';
+}
+
+function normalizeUpdateManifestUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.length > UPDATE_MANIFEST_URL_MAX_LENGTH) throw new Error('更新清单地址过长');
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error('更新清单地址格式不正确');
+  }
+  if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) {
+    throw new Error('更新清单必须使用不含账号信息的 HTTPS 地址');
+  }
+  url.hash = '';
+  return url.href;
+}
+
+function getNativeAppInfo() {
+  const bridge = window.AndroidFileBridge;
+  if (!bridge || typeof bridge.getAppInfo !== 'function') return null;
+  try {
+    const info = JSON.parse(bridge.getAppInfo());
+    if (!Number.isFinite(Number(info.versionCode)) || !String(info.versionName || '').trim()) return null;
+    return { versionCode: Number(info.versionCode), versionName: String(info.versionName).trim() };
+  } catch {
+    return null;
+  }
+}
+
+function supportsNativeUpdate() {
+  const bridge = window.AndroidFileBridge;
+  return Boolean(
+    bridge
+      && typeof bridge.checkForUpdate === 'function'
+      && typeof bridge.installAvailableUpdate === 'function'
+      && typeof bridge.getUpdateStatus === 'function'
+      && getNativeAppInfo(),
+  );
 }
 
 function isValidBusinessDate(value) {
@@ -351,12 +395,13 @@ async function dbClear(storeName) {
 }
 
 async function refreshData() {
-  const [students, sessions, records, checkerSetting, archiveSetting] = await Promise.all([
+  const [students, sessions, records, checkerSetting, archiveSetting, updateSetting] = await Promise.all([
     dbGetAll(STORES.students),
     dbGetAll(STORES.sessions),
     dbGetAll(STORES.records),
     dbGet(STORES.settings, 'checkerName'),
     dbGet(STORES.settings, 'archiveDirectory'),
+    dbGet(STORES.settings, 'updateManifestUrl'),
   ]);
 
   const cleanStudents = students.map(normalizeStoredStudent).filter(Boolean);
@@ -373,6 +418,11 @@ async function refreshData() {
   state.checkerName = checkerSetting?.value || '';
   state.archiveDirectoryHandle = archiveSetting?.value || null;
   state.archiveDirectoryName = archiveSetting?.name || '';
+  try {
+    state.updateManifestUrl = normalizeUpdateManifestUrl(updateSetting?.value);
+  } catch {
+    state.updateManifestUrl = '';
+  }
 
   normalizeViewState();
 }
@@ -1060,6 +1110,7 @@ function renderManage() {
         <span class="archive-name">${escapeHtml(state.archiveDirectoryName || '未设置，使用浏览器下载')}</span>
       </div>
     </section>
+    ${renderUpdatePanel()}
     <section class="backup-panel">
       <div class="panel-heading">
         <div>
@@ -1114,6 +1165,35 @@ function renderManage() {
       <p>这是本地应用：数据只存在当前浏览器和设备中。导入、识别、导出和备份均在本机完成，不上传名单。</p>
     </section>
   `;
+}
+
+function renderUpdatePanel() {
+  const nativeAppInfo = getNativeAppInfo();
+  const updateEnabled = supportsNativeUpdate();
+  const updateStatus = state.updateStatus || { state: 'idle', message: '' };
+  if (!updateEnabled) {
+    return '<section class="update-panel"><div class="panel-heading"><div><p class="section-kicker">APP UPDATE</p><h3>应用更新</h3></div><i data-lucide="refresh-cw"></i></div><p class="panel-copy">当前为浏览器版本，应用内更新仅在 Android 安装包中可用。</p></section>';
+  }
+
+  const installButton = updateStatus.state === 'ready'
+    ? '<button class="primary-button" type="button" data-action="install-app-update"><i data-lucide="download"></i><span>安装更新</span></button>'
+    : '';
+  const checkDisabled = state.isBusy || !state.updateManifestUrl ? 'disabled' : '';
+  return [
+    '<section class="update-panel">',
+    '<div class="panel-heading"><div><p class="section-kicker">APP UPDATE</p><h3>应用更新</h3></div><i data-lucide="refresh-cw"></i></div>',
+    '<p class="panel-copy">当前版本 ' + escapeHtml(nativeAppInfo.versionName) + '。填写你的 HTTPS 更新清单地址后，可在本机检查、验证并安装新版 APK。</p>',
+    '<label class="field-label update-url-field">更新清单地址',
+    '<input type="url" id="update-manifest-url" value="' + escapeHtml(state.updateManifestUrl) + '" placeholder="https://example.com/catcheck/update.json" inputmode="url" maxlength="' + UPDATE_MANIFEST_URL_MAX_LENGTH + '" autocomplete="off" />',
+    '</label>',
+    '<div class="update-actions">',
+    '<button class="secondary-button" type="button" data-action="save-update-manifest"><i data-lucide="save"></i><span>保存地址</span></button>',
+    '<button class="primary-button" type="button" data-action="check-app-update" ' + checkDisabled + '><i data-lucide="search-check"></i><span>检查更新</span></button>',
+    installButton,
+    '</div>',
+    '<p class="update-status update-status-' + escapeHtml(updateStatus.state) + '">' + escapeHtml(updateStatus.message || '尚未检查更新') + '</p>',
+    '</section>',
+  ].join('');
 }
 
 function renderCommuterManage() {
@@ -2068,6 +2148,75 @@ async function clearArchiveDirectory() {
   showToast('已清除存档目录，将使用浏览器下载');
 }
 
+async function saveUpdateManifestUrl() {
+  const input = document.querySelector('#update-manifest-url');
+  try {
+    const value = normalizeUpdateManifestUrl(input?.value);
+    await dbPut(STORES.settings, { key: 'updateManifestUrl', value });
+    state.updateManifestUrl = value;
+    state.updateStatus = { state: 'idle', message: value ? '更新地址已保存，可检查更新' : '已清除更新地址' };
+    render();
+    showToast(value ? '更新地址已保存' : '更新地址已清除', 'success');
+  } catch (error) {
+    state.updateStatus = { state: 'error', message: error.message || '更新地址保存失败' };
+    render();
+    showToast(state.updateStatus.message, 'error');
+  }
+}
+
+function pollUpdateStatus() {
+  const bridge = window.AndroidFileBridge;
+  if (!bridge || typeof bridge.getUpdateStatus !== 'function') return;
+  let status;
+  try {
+    status = JSON.parse(bridge.getUpdateStatus());
+  } catch {
+    return;
+  }
+  if (!status?.state) return;
+  state.updateStatus = {
+    state: String(status.state),
+    message: String(status.message || ''),
+  };
+  if (status.state === 'checking' || status.state === 'downloading' || status.state === 'installing') {
+    render();
+    clearTimeout(state.updatePollTimer);
+    state.updatePollTimer = setTimeout(pollUpdateStatus, 450);
+    return;
+  }
+  render();
+  if (status.state === 'ready') showToast(status.message || '新版本已准备好安装', 'success');
+  if (status.state === 'error') showToast(status.message || '更新失败', 'error');
+}
+
+function checkAppUpdate() {
+  if (!supportsNativeUpdate() || !state.updateManifestUrl) return;
+  try {
+    const response = JSON.parse(window.AndroidFileBridge.checkForUpdate(state.updateManifestUrl));
+    state.updateStatus = { state: String(response.state || 'checking'), message: String(response.message || '正在检查更新') };
+    render();
+    clearTimeout(state.updatePollTimer);
+    state.updatePollTimer = setTimeout(pollUpdateStatus, 250);
+  } catch {
+    state.updateStatus = { state: 'error', message: '无法启动更新检查' };
+    render();
+  }
+}
+
+function installAppUpdate() {
+  if (!supportsNativeUpdate()) return;
+  try {
+    const response = JSON.parse(window.AndroidFileBridge.installAvailableUpdate());
+    state.updateStatus = { state: String(response.state || 'installing'), message: String(response.message || '正在请求系统安装') };
+    render();
+    clearTimeout(state.updatePollTimer);
+    state.updatePollTimer = setTimeout(pollUpdateStatus, 250);
+  } catch {
+    state.updateStatus = { state: 'error', message: '无法启动系统安装' };
+    render();
+  }
+}
+
 async function copyReport() {
   const report = document.querySelector('#report-text')?.textContent || '';
   if (!report) return;
@@ -2163,6 +2312,12 @@ function handleClick(event) {
     chooseArchiveDirectory();
   } else if (action === 'clear-archive-directory') {
     clearArchiveDirectory();
+  } else if (action === 'save-update-manifest') {
+    saveUpdateManifestUrl();
+  } else if (action === 'check-app-update') {
+    checkAppUpdate();
+  } else if (action === 'install-app-update') {
+    installAppUpdate();
   } else if (action === 'confirm-restore') {
     commitBackupRestore();
   } else if (action === 'cancel-restore') {
