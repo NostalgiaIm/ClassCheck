@@ -1,11 +1,25 @@
+<div align="center">
+
+<img src="./public/icons/catcheck-icon.png" width="110" height="110" alt="CatCheck app icon" />
+
 # CatCheck
 
-[![Offline-first](https://img.shields.io/badge/data-offline--first-167d78?style=flat-square)](README.zh-CN.md)
-[![Android](https://img.shields.io/badge/Android-10%2B-3ddc84?style=flat-square)](android/)
-[![Web](https://img.shields.io/badge/Web-PWA-4f8df7?style=flat-square)](public/manifest.webmanifest)
-[![Language](https://img.shields.io/badge/README-%E4%B8%AD%E6%96%87-cc4b37?style=flat-square)](README.zh-CN.md)
+### Room-by-room dormitory attendance for mobile
 
-**English** | [简体中文](README.zh-CN.md)
+**Local-first, fast, and built for exception-only check-ins**
+
+[![Version](https://img.shields.io/badge/Version-v1.2.1-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases)
+[![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
+[![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
+[![Data](https://img.shields.io/badge/Data-Offline--first-167D78.svg?style=flat-square)](README.zh-CN.md)
+
+<br />
+
+**English** • [**简体中文**](README.zh-CN.md)
+
+<br />
+
+</div>
 
 CatCheck (default Chinese name: **喵喵查寝**) is a mobile-first, offline dormitory attendance tool. It takes attendance by room, starts every room as present, and lets staff change only exceptions. Student data stays on the device.
 

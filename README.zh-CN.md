@@ -1,11 +1,25 @@
-# CatCheck（喵喵查寝）
+<div align="center">
 
-[![本地优先](https://img.shields.io/badge/%E6%95%B0%E6%8D%AE-%E6%9C%AC%E5%9C%B0%E4%BC%98%E5%85%88-167d78?style=flat-square)](README.md)
-[![Android](https://img.shields.io/badge/Android-10%2B-3ddc84?style=flat-square)](android/)
-[![Web](https://img.shields.io/badge/Web-PWA-4f8df7?style=flat-square)](public/manifest.webmanifest)
-[![README](https://img.shields.io/badge/README-English-3569a7?style=flat-square)](README.md)
+<img src="./public/icons/catcheck-icon.png" width="110" height="110" alt="CatCheck 应用图标" />
 
-[English](README.md) | **简体中文**
+# CatCheck
+
+### 喵喵查寝
+
+**按寝查寝，数据本地保存，只修改异常人员**
+
+[![Version](https://img.shields.io/badge/Version-v1.2.1-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases)
+[![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
+[![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
+[![Data](https://img.shields.io/badge/Data-%E6%9C%AC%E5%9C%B0%E4%BC%98%E5%85%88-167D78.svg?style=flat-square)](README.md)
+
+<br />
+
+[**English**](README.md) • **简体中文**
+
+<br />
+
+</div>
 
 CatCheck（默认显示中文名：**喵喵查寝**）是一个移动端优先、按宿舍号点名的离线查寝工具。进入一个寝室时默认全到，只需要修改异常人员，学生数据保存在本机。
 
