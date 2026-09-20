@@ -29,7 +29,6 @@ const STATUS_META = {
 
 const VALID_ROUTES = new Set(['home', 'history', 'manage', 'commuter', 'room-select', 'attendance', 'export']);
 const VALID_STATUSES = new Set(Object.keys(STATUS_META));
-const UPDATE_MANIFEST_URL_MAX_LENGTH = 500;
 
 const state = {
   route: 'home',
@@ -53,7 +52,6 @@ const state = {
   backupPreview: null,
   archiveDirectoryHandle: null,
   archiveDirectoryName: '',
-  updateManifestUrl: '',
   updateStatus: { state: 'idle', message: '' },
   updatePollTimer: null,
   ocrProgress: '',
@@ -110,22 +108,6 @@ function normalizeClassName(value) {
   return String(value || '').trim() || '未分班';
 }
 
-function normalizeUpdateManifestUrl(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  if (raw.length > UPDATE_MANIFEST_URL_MAX_LENGTH) throw new Error('更新清单地址过长');
-  let url;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new Error('更新清单地址格式不正确');
-  }
-  if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) {
-    throw new Error('更新清单必须使用不含账号信息的 HTTPS 地址');
-  }
-  url.hash = '';
-  return url.href;
-}
 
 function getNativeAppInfo() {
   const bridge = window.AndroidFileBridge;
@@ -395,13 +377,12 @@ async function dbClear(storeName) {
 }
 
 async function refreshData() {
-  const [students, sessions, records, checkerSetting, archiveSetting, updateSetting] = await Promise.all([
+  const [students, sessions, records, checkerSetting, archiveSetting] = await Promise.all([
     dbGetAll(STORES.students),
     dbGetAll(STORES.sessions),
     dbGetAll(STORES.records),
     dbGet(STORES.settings, 'checkerName'),
     dbGet(STORES.settings, 'archiveDirectory'),
-    dbGet(STORES.settings, 'updateManifestUrl'),
   ]);
 
   const cleanStudents = students.map(normalizeStoredStudent).filter(Boolean);
@@ -418,11 +399,6 @@ async function refreshData() {
   state.checkerName = checkerSetting?.value || '';
   state.archiveDirectoryHandle = archiveSetting?.value || null;
   state.archiveDirectoryName = archiveSetting?.name || '';
-  try {
-    state.updateManifestUrl = normalizeUpdateManifestUrl(updateSetting?.value);
-  } catch {
-    state.updateManifestUrl = '';
-  }
 
   normalizeViewState();
 }
@@ -1178,16 +1154,12 @@ function renderUpdatePanel() {
   const installButton = updateStatus.state === 'ready'
     ? '<button class="primary-button" type="button" data-action="install-app-update"><i data-lucide="download"></i><span>安装更新</span></button>'
     : '';
-  const checkDisabled = state.isBusy || !state.updateManifestUrl ? 'disabled' : '';
+  const checkDisabled = state.isBusy ? 'disabled' : '';
   return [
     '<section class="update-panel">',
     '<div class="panel-heading"><div><p class="section-kicker">APP UPDATE</p><h3>应用更新</h3></div><i data-lucide="refresh-cw"></i></div>',
-    '<p class="panel-copy">当前版本 ' + escapeHtml(nativeAppInfo.versionName) + '。填写你的 HTTPS 更新清单地址后，可在本机检查、验证并安装新版 APK。</p>',
-    '<label class="field-label update-url-field">更新清单地址',
-    '<input type="url" id="update-manifest-url" value="' + escapeHtml(state.updateManifestUrl) + '" placeholder="https://example.com/catcheck/update.json" inputmode="url" maxlength="' + UPDATE_MANIFEST_URL_MAX_LENGTH + '" autocomplete="off" />',
-    '</label>',
+    '<p class="panel-copy">当前版本 ' + escapeHtml(nativeAppInfo.versionName) + '。点击检查更新后，应用会从内置的官方更新源检查、验证并下载新版 APK。</p>',
     '<div class="update-actions">',
-    '<button class="secondary-button" type="button" data-action="save-update-manifest"><i data-lucide="save"></i><span>保存地址</span></button>',
     '<button class="primary-button" type="button" data-action="check-app-update" ' + checkDisabled + '><i data-lucide="search-check"></i><span>检查更新</span></button>',
     installButton,
     '</div>',
@@ -2148,21 +2120,6 @@ async function clearArchiveDirectory() {
   showToast('已清除存档目录，将使用浏览器下载');
 }
 
-async function saveUpdateManifestUrl() {
-  const input = document.querySelector('#update-manifest-url');
-  try {
-    const value = normalizeUpdateManifestUrl(input?.value);
-    await dbPut(STORES.settings, { key: 'updateManifestUrl', value });
-    state.updateManifestUrl = value;
-    state.updateStatus = { state: 'idle', message: value ? '更新地址已保存，可检查更新' : '已清除更新地址' };
-    render();
-    showToast(value ? '更新地址已保存' : '更新地址已清除', 'success');
-  } catch (error) {
-    state.updateStatus = { state: 'error', message: error.message || '更新地址保存失败' };
-    render();
-    showToast(state.updateStatus.message, 'error');
-  }
-}
 
 function pollUpdateStatus() {
   const bridge = window.AndroidFileBridge;
@@ -2190,9 +2147,9 @@ function pollUpdateStatus() {
 }
 
 function checkAppUpdate() {
-  if (!supportsNativeUpdate() || !state.updateManifestUrl) return;
+  if (!supportsNativeUpdate()) return;
   try {
-    const response = JSON.parse(window.AndroidFileBridge.checkForUpdate(state.updateManifestUrl));
+    const response = JSON.parse(window.AndroidFileBridge.checkForUpdate());
     state.updateStatus = { state: String(response.state || 'checking'), message: String(response.message || '正在检查更新') };
     render();
     clearTimeout(state.updatePollTimer);
@@ -2312,8 +2269,6 @@ function handleClick(event) {
     chooseArchiveDirectory();
   } else if (action === 'clear-archive-directory') {
     clearArchiveDirectory();
-  } else if (action === 'save-update-manifest') {
-    saveUpdateManifestUrl();
   } else if (action === 'check-app-update') {
     checkAppUpdate();
   } else if (action === 'install-app-update') {

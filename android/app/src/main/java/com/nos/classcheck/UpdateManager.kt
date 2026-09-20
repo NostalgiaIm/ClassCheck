@@ -40,8 +40,8 @@ class UpdateManager(private val context: Context) {
         .put("message", preferences.getString(KEY_MESSAGE, "尚未检查更新") ?: "")
         .toString()
 
-    fun check(manifestUrl: String): String {
-        if (!isSafeHttpsUrl(manifestUrl, MAX_MANIFEST_URL_LENGTH)) {
+    fun check(): String {
+        if (!isSafeHttpsUrl(UPDATE_MANIFEST_URL, MAX_MANIFEST_URL_LENGTH)) {
             saveStatus(context, STATE_ERROR, "更新清单必须使用安全的 HTTPS 地址")
             return statusJson()
         }
@@ -50,7 +50,7 @@ class UpdateManager(private val context: Context) {
         saveStatus(context, STATE_CHECKING, "正在检查更新")
         executor.execute {
             try {
-                val manifest = fetchManifest(manifestUrl)
+                val manifest = fetchManifest(UPDATE_MANIFEST_URL)
                 if (manifest.versionCode <= versionCodeOf(currentPackageInfo())) {
                     deletePendingApk()
                     clearManifest()
@@ -416,6 +416,7 @@ class UpdateManager(private val context: Context) {
         private const val STATE_INSTALLING = "installing"
         private const val STATE_ERROR = "error"
         private const val MANIFEST_FORMAT = "catcheck-update-v1"
+        private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/NostalgiaIm/ClassCheck/Tedab/updates/latest.json"
         private const val UPDATE_DIRECTORY = "catcheck-update"
         private const val PENDING_APK_NAME = "CatCheck.apk"
         private const val MAX_MANIFEST_URL_LENGTH = 500
