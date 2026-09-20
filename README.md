@@ -111,6 +111,7 @@ Test cases, fixtures, and recorded results are in [tests/](tests/README.md). Aut
 | `1.1.1` | Stabilized Android launch behavior and the embedded WebView startup path. |
 | `1.1.2` | Added commuter marking, fixed top navigation, and backup persistence for the marker. |
 | `1.1.3` | Refined the two-row top bar and room-management navigation. |
+| `1.2.1` | Made the official update manifest a fixed Android setting, removed the editable update address, and retained HTTPS, APK size/hash/signature checks, and system-confirmed installation. |
 | `1.2.0` | Added self-hosted in-app Android updates with HTTPS manifests, APK size/hash/signature verification, system-confirmed installation, and a local manifest generator. |
 | `1.1.4` | Hardened stored state and routes; placed Save / Next directly after the roster; stabilized the checker dialog around the soft keyboard. |
 
@@ -130,7 +131,7 @@ Useful contributions include accessibility checks, device testing, better OCR fi
 - [Test assets and results](tests/README.md)
 ## In-App Android Updates
 
-The Android app can check a maintainer-controlled HTTPS update manifest from the roster screen. The manifest URL is stored only on the device. The browser/PWA build does not request updates.
+The Android app checks a fixed, maintainer-controlled HTTPS update manifest from the roster screen. Users only choose “Check for updates”; no editable manifest address is shown, stored, or passed from the web UI. The browser/PWA build does not request updates.
 
 Before the app offers installation, it verifies all of the following:
 
@@ -153,6 +154,6 @@ To publish an update:
    ```
 
 4. Upload `CatCheck.apk` and `update.json` to HTTPS hosting. See [update-manifest.example.json](update-manifest.example.json).
-5. In the installed Android app, open “名单”, enter the `update.json` HTTPS URL in “应用更新”, save it, and choose “检查更新”.
+5. Publish the manifest at the HTTPS location compiled into the Android app. In the installed Android app, open “名单” and choose “检查更新”.
 
-For a GitHub Release, use a stable HTTPS URL for the manifest itself. Release asset URLs can host the APK, but the app must always be able to fetch the JSON URL you configured.
+For a GitHub Release, use a stable HTTPS URL for the manifest itself. Release asset URLs can host the APK, but the app must always be able to fetch the JSON URL compiled into the Android app.

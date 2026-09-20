@@ -175,7 +175,7 @@ class MainActivity : Activity() {
         fun getUpdateStatus(): String = updateManager.statusJson()
 
         @JavascriptInterface
-        fun checkForUpdate(manifestUrl: String): String = updateManager.check(manifestUrl)
+        fun checkForUpdate(): String = updateManager.check()
 
         @JavascriptInterface
         fun installAvailableUpdate(): String = updateManager.install()

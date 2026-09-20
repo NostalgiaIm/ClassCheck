@@ -46,7 +46,7 @@ const sourceFiles = [
 const source = sourceFiles.map(read).join('\n');
 assert.ok(source.includes('createWorker'), '应包含本地 OCR worker 接入');
 assert.ok(source.includes('/ocr/core'), 'OCR 应使用本地 core 路径');
-assert.ok(read('public/sw.js').includes("catcheck-shell-v7"), '更新应切换离线缓存版本，避免继续使用旧界面资源');
+assert.ok(read('public/sw.js').includes("catcheck-shell-v8"), '更新应切换离线缓存版本，避免继续使用旧界面资源');
 assert.ok(source.includes('showDirectoryPicker'), '应包含可配置存档目录');
 assert.ok(source.includes('image/png') && source.includes('image/jpeg'), '应包含 PNG/JPG 导出');
 assert.ok(source.includes('bookType: \'xlsx\''), '应包含 Excel 导出');
@@ -78,8 +78,8 @@ assert.ok(source.includes('VALID_STATUSES.has(target.dataset.status)'), '点名�
 assert.ok(read('android/app/src/main/java/com/nos/classcheck/MainActivity.kt').includes('navigationBarInsetBottom'), 'Android 应注入系统导航栏高度');
 assert.ok(read('public/manifest.webmanifest').includes('喵喵查寝'), 'PWA 名称应使用喵喵查寝');
 assert.ok(exists('public/icons/catcheck-icon.png'), 'CatCheck 应用图标缺失');
-assert.ok(source.includes('normalizeUpdateManifestUrl') && source.includes('check-app-update'), '应提供应用内更新设置和检查入口');
-assert.ok(source.includes('https://example.com/catcheck/update.json'), '更新地址应提供清晰的 HTTPS 示例');
+assert.ok(source.includes('check-app-update') && source.includes('checkForUpdate()'), '应提供内置更新源的检查入口');
+assert.ok(!source.includes('update-manifest-url') && !source.includes('save-update-manifest'), '更新源不应向用户暴露可编辑地址');
 const androidSource = [
   'android/app/src/main/java/com/nos/classcheck/MainActivity.kt',
   'android/app/src/main/java/com/nos/classcheck/UpdateManager.kt',
@@ -89,6 +89,8 @@ const androidSource = [
 assert.ok(androidSource.includes('REQUEST_INSTALL_PACKAGES') && androidSource.includes('PackageInstaller'), 'Android 应通过系统安装器请求更新');
 assert.ok(androidSource.includes('sha256Of') && androidSource.includes('signingCertSha256'), '更新应校验 APK 摘要和签名证书');
 assert.ok(androidSource.includes('isSafeHttpsUrl') && androidSource.includes('MAX_APK_BYTES'), '更新下载应限制 HTTPS 地址和文件大小');
+assert.ok(androidSource.includes('fun check(): String') && androidSource.includes('UPDATE_MANIFEST_URL'), '原生更新器应使用内置更新清单地址');
+assert.ok(!androidSource.includes('check(manifestUrl: String)'), '网页不应向原生更新器传入任意更新地址');
 assert.ok(exists('tools/publish-update.ps1'), '应提供更新清单生成脚本');
 assert.ok(exists('update-manifest.example.json'), '应提供更新清单模板');
 
