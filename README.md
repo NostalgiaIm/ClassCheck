@@ -111,6 +111,7 @@ Test cases, fixtures, and recorded results are in [tests/](tests/README.md). Aut
 | `1.1.1` | Stabilized Android launch behavior and the embedded WebView startup path. |
 | `1.1.2` | Added commuter marking, fixed top navigation, and backup persistence for the marker. |
 | `1.1.3` | Refined the two-row top bar and room-management navigation. |
+| `1.2.0` | Added self-hosted in-app Android updates with HTTPS manifests, APK size/hash/signature verification, system-confirmed installation, and a local manifest generator. |
 | `1.1.4` | Hardened stored state and routes; placed Save / Next directly after the roster; stabilized the checker dialog around the soft keyboard. |
 
 The JavaScript package version remains `0.1.0`; Android `versionCode`/`versionName` identify the installable mobile build. The table records product milestones, not uploaded binary releases.
@@ -127,3 +128,31 @@ Useful contributions include accessibility checks, device testing, better OCR fi
 - [Phone usage guide](README-手机使用.md)
 - [Mobile technology choice](README-移动端选型.md)
 - [Test assets and results](tests/README.md)
+## In-App Android Updates
+
+The Android app can check a maintainer-controlled HTTPS update manifest from the roster screen. The manifest URL is stored only on the device. The browser/PWA build does not request updates.
+
+Before the app offers installation, it verifies all of the following:
+
+- The manifest and APK URLs use HTTPS without embedded credentials.
+- The package name matches `com.nos.classcheck`.
+- The candidate version code is higher than the installed version.
+- Downloaded APK size and SHA-256 match the manifest.
+- The APK signing certificate matches the currently installed app.
+
+Android always shows its own installation confirmation. The app does not perform silent installation.
+
+To publish an update:
+
+1. Increase Android `versionCode` and `versionName`, then build the APK.
+2. Obtain the current signing certificate SHA-256 for the release signing key.
+3. Generate a manifest:
+
+   ```powershell
+   .\tools\publish-update.ps1 -ApkPath .\android\app\build\outputs\apk\release\CatCheck.apk -ApkUrl https://your-host.example/CatCheck.apk -SigningCertSha256 YOUR_64_CHARACTER_CERT_SHA256 -OutputPath .\publish\update.json
+   ```
+
+4. Upload `CatCheck.apk` and `update.json` to HTTPS hosting. See [update-manifest.example.json](update-manifest.example.json).
+5. In the installed Android app, open “名单”, enter the `update.json` HTTPS URL in “应用更新”, save it, and choose “检查更新”.
+
+For a GitHub Release, use a stable HTTPS URL for the manifest itself. Release asset URLs can host the APK, but the app must always be able to fetch the JSON URL you configured.

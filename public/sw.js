@@ -1,4 +1,4 @@
-const CACHE_NAME = 'catcheck-shell-v6';
+const CACHE_NAME = 'catcheck-shell-v7';
 const SHELL_ASSETS = [
   '/',
   '/index.html',

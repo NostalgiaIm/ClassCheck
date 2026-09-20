@@ -23,6 +23,7 @@ import java.io.IOException
 import java.util.Base64
 
 class MainActivity : Activity() {
+    private val updateManager by lazy { UpdateManager(this) }
     private lateinit var webView: WebView
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var navigationBarInsetBottom = 0
@@ -118,6 +119,10 @@ class MainActivity : Activity() {
             return openAsset(path)
         }
 
+        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+            return request?.url?.host != ASSET_HOST
+        }
+
         private fun openAsset(path: String): WebResourceResponse? {
             if (path.contains("..") || path.startsWith("\\")) return null
             return try {
@@ -161,6 +166,19 @@ class MainActivity : Activity() {
                 "error"
             }
         }
+
+
+        @JavascriptInterface
+        fun getAppInfo(): String = updateManager.appInfoJson()
+
+        @JavascriptInterface
+        fun getUpdateStatus(): String = updateManager.statusJson()
+
+        @JavascriptInterface
+        fun checkForUpdate(manifestUrl: String): String = updateManager.check(manifestUrl)
+
+        @JavascriptInterface
+        fun installAvailableUpdate(): String = updateManager.install()
     }
 
     private fun sanitizeFilename(value: String): String {
