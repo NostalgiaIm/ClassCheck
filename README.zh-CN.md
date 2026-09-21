@@ -8,7 +8,7 @@
 
 **按寝查寝，数据本地保存，只修改异常人员**
 
-[![Version](https://img.shields.io/badge/Version-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases)
+[![Release](https://img.shields.io/badge/Release-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
 [![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
 [![Data](https://img.shields.io/badge/Data-%E6%9C%AC%E5%9C%B0%E4%BC%98%E5%85%88-167D78.svg?style=flat-square)](README.md)
@@ -42,7 +42,7 @@ CatCheck（默认显示中文名：**喵喵查寝**）是一个移动端优先�
 
 当前可安装移动端版本为 **v1.2.3**。本次把 Android APK 和 iOS WebView 包重绘为设计稿中的浅青 Material 3 界面，同时保留顶部双层导航：应用图标、**喵喵查寝**、圆形 GitHub 入口，以及 **今日 / 历史 / 名单**。GitHub 入口会打开 **加入我们** 弹窗，通过 **查看项目** 按钮跳转仓库，不在界面中直接展示地址。
 
-安装包会随 GitHub Release 上传；本地交付校验值保存在 [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt)。
+已发布 [GitHub Release v1.2.3](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)，其中包含 Android APK 与 iOS WebView 包；本地交付校验值保存在 [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt)。
 
 
 ## 使用流程

@@ -8,7 +8,7 @@
 
 **Local-first, fast, and built for exception-only check-ins**
 
-[![Version](https://img.shields.io/badge/Version-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases)
+[![Release](https://img.shields.io/badge/Release-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
 [![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
 [![Data](https://img.shields.io/badge/Data-Offline--first-167D78.svg?style=flat-square)](README.zh-CN.md)
@@ -42,7 +42,7 @@ No student number is collected. The roster model is deliberately limited to `roo
 
 The current installable mobile build is **v1.2.3**. It redraws the Android APK and iOS WebView package with the pale-teal Material 3 interface used in the design mockups while keeping the two-row top navigation: app icon, **喵喵查寝**, a circular GitHub entry, then **Today / History / Roster**. The GitHub entry opens an **Join us** dialog and exposes the repository through a **View project** button instead of printing the URL in the UI.
 
-Release assets are uploaded with the GitHub Release. Local delivery checksums are kept in [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt).
+The published [GitHub Release v1.2.3](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3) includes the Android APK and iOS WebView package. Local delivery checksums are kept in [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt).
 
 
 ## Workflow
