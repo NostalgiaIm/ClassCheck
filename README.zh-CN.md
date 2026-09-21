@@ -9,6 +9,7 @@
 **按寝查寝，数据本地保存，只修改异常人员**
 
 [![Release](https://img.shields.io/badge/Release-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-10%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
 [![iOS](https://img.shields.io/badge/iOS-16%2B-000000.svg?style=flat-square&logo=apple)](ios/CatCheck/)
 [![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
@@ -161,6 +162,10 @@ npm run build
 | `0.1.0` | 初始离线 PWA 原型：按寝名单、点名、历史、本地存储。 |
 
 JavaScript 包版本（`0.x.x`）现已独立于 Android 产品版本；详见 [CHANGELOG.md](CHANGELOG.md)。Android 的 `versionCode`/`versionName` 用于标识可安装的移动版本。表格记录的是产品里程碑，并不代表上传二进制安装包。
+
+## 开源许可证
+
+CatCheck 使用 [MIT License](LICENSE) 发布。
 
 ## 贡献
 

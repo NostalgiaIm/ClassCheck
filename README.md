@@ -9,6 +9,7 @@
 **Local-first, fast, and built for exception-only check-ins**
 
 [![Release](https://img.shields.io/badge/Release-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-10%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
 [![iOS](https://img.shields.io/badge/iOS-16%2B-000000.svg?style=flat-square&logo=apple)](ios/CatCheck/)
 [![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
@@ -153,6 +154,10 @@ Test cases, fixtures, and recorded results are in [tests/](tests/README.md). Aut
 | `0.1.0` | Initial offline PWA proof of concept: room-based roster, attendance, history, and local storage. |
 
 The JavaScript package version (`0.x.x`) now tracks web/PWA releases independently; see [CHANGELOG.md](CHANGELOG.md) for details. Android `versionCode`/`versionName` identify the installable mobile build. The table records product milestones, not uploaded binary releases.
+
+## License
+
+CatCheck is released under the [MIT License](LICENSE).
 
 ## Contributing
 
