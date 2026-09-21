@@ -8,7 +8,7 @@
 
 **Local-first, fast, and built for exception-only check-ins**
 
-[![Version](https://img.shields.io/badge/Version-v1.2.1-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
 [![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
 [![Data](https://img.shields.io/badge/Data-Offline--first-167D78.svg?style=flat-square)](README.zh-CN.md)
@@ -37,6 +37,13 @@ CatCheck (default Chinese name: **喵喵查寝**) is a mobile-first, offline dor
 - Install as a local Android app through the Kotlin WebView shell, or use the browser/PWA build.
 
 No student number is collected. The roster model is deliberately limited to `roomNo`, `name`, `className`, and the optional local `isCommuter` marker.
+
+## Latest Mobile Build
+
+The current installable mobile build is **v1.2.3**. It redraws the Android APK and iOS WebView package with the pale-teal Material 3 interface used in the design mockups while keeping the two-row top navigation: app icon, **喵喵查寝**, a circular GitHub entry, then **Today / History / Roster**. The GitHub entry opens an **Join us** dialog and exposes the repository through a **View project** button instead of printing the URL in the UI.
+
+Release assets are uploaded with the GitHub Release. Local delivery checksums are kept in [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt).
+
 
 ## Workflow
 
@@ -119,17 +126,19 @@ Test cases, fixtures, and recorded results are in [tests/](tests/README.md). Aut
 
 | Version | Summary |
 | --- | --- |
-| `0.1.0` | Initial offline PWA proof of concept: room-based roster, attendance, history, and local storage. |
-| `1.0.0` | Added structured roster import/export, local OCR, report text, JSON backup, and multiple report formats. |
-| `1.1.0` | Introduced CatCheck / 喵喵查寝 branding, cat icon, and mobile safe-area work. |
-| `1.1.1` | Stabilized Android launch behavior and the embedded WebView startup path. |
-| `1.1.2` | Added commuter marking, fixed top navigation, and backup persistence for the marker. |
-| `1.1.3` | Refined the two-row top bar and room-management navigation. |
+| `1.2.3` | Repainted the Android APK and iOS WebView package to match the pale-teal Material 3 mockups, kept the two-row top navigation, and added the GitHub "Join us" dialog with a "View project" button. |
 | `1.2.1` | Made the official update manifest a fixed Android setting, removed the editable update address, and retained HTTPS, APK size/hash/signature checks, and system-confirmed installation. |
 | `1.2.0` | Added self-hosted in-app Android updates with HTTPS manifests, APK size/hash/signature verification, system-confirmed installation, and a local manifest generator. |
 | `1.1.4` | Hardened stored state and routes; placed Save / Next directly after the roster; stabilized the checker dialog around the soft keyboard. |
+| `1.1.3` | Refined the two-row top bar and room-management navigation. |
+| `1.1.2` | Added commuter marking, fixed top navigation, and backup persistence for the marker. |
+| `1.1.1` | Stabilized Android launch behavior and the embedded WebView startup path. |
+| `1.1.0` | Introduced CatCheck / 喵喵查寝 branding, cat icon, and mobile safe-area work. |
+| `1.0.0` | Added structured roster import/export, local OCR, report text, JSON backup, and multiple report formats. |
+| `0.2.0` | Material Design 3 redesign: semantic color tokens, typography, shadows, and components. Added offline OCR resource caching, improved PWA service worker, and storage quota management. |
+| `0.1.0` | Initial offline PWA proof of concept: room-based roster, attendance, history, and local storage. |
 
-The JavaScript package version remains `0.1.0`; Android `versionCode`/`versionName` identify the installable mobile build. The table records product milestones, not uploaded binary releases.
+The JavaScript package version (`0.x.x`) now tracks web/PWA releases independently; see [CHANGELOG.md](CHANGELOG.md) for details. Android `versionCode`/`versionName` identify the installable mobile build. The table records product milestones, not uploaded binary releases.
 
 ## Contributing
 

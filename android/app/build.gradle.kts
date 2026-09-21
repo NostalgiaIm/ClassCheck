@@ -1,18 +1,41 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
+val keystorePropertiesFile = rootProject.file("app/keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
+fun signingValue(name: String): String? =
+    (keystoreProperties[name] as String?) ?: System.getenv(name.uppercase().replace(".", "_"))
+
 android {
     namespace = "com.nos.classcheck"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.nos.classcheck"
         minSdk = 29
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.2.1"
+        versionCode = 10
+        versionName = "1.2.3"
+    }
+
+    signingConfigs {
+        create("releaseLocal") {
+            val storeFilePath = signingValue("storeFile")
+            if (!storeFilePath.isNullOrBlank()) {
+                storeFile = file(storeFilePath)
+                storePassword = signingValue("storePassword")
+                keyAlias = signingValue("keyAlias")
+                keyPassword = signingValue("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -22,6 +45,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (signingConfigs.getByName("releaseLocal").storeFile != null) {
+                signingConfig = signingConfigs.getByName("releaseLocal")
+            }
         }
     }
 

@@ -9,10 +9,21 @@ import {
   parseTextRecords,
   sanitizeImportedValue,
 } from './importer.mjs';
+import { escapeMarkdownCell, safeSpreadsheetCell } from './export-utils.mjs';
+import { buildAttendanceReportModel, createReportConfirmationFingerprint } from './report-model.mjs';
+import {
+  planReportImagePages,
+  planReportXlsxSheet,
+  renderReportImagePage,
+  renderReportMarkdown,
+  reportFileStem,
+} from './report-renderers.mjs';
+import { registerCatCheckPwa } from './pwa-register.js';
 import './style.css';
 
 const DB_NAME = 'dorm-check-local';
 const DB_VERSION = 3;
+const GITHUB_PROJECT_URL = 'https://github.com/NostalgiaIm/ClassCheck';
 
 const STORES = {
   students: 'students',
@@ -44,6 +55,7 @@ const state = {
   attendanceFilter: 'all',
   checkMode: null,
   startDialogOpen: false,
+  joinDialogOpen: false,
   startDialogError: '',
   historyDate: '',
   historyRoomNo: '',
@@ -57,11 +69,36 @@ const state = {
   ocrProgress: '',
   toastTimer: null,
   isBusy: false,
+  reportDialog: null,
+  confirmedReportFingerprints: new Set(),
+  // PWA 更新管理
+  pwaUpdateAvailable: false,
+  pwaController: null,
+  updateGuard: {
+    isImporting: false,
+    isRecognizingOcr: false,
+    isRestoringBackup: false,
+    isSaving: false,
+    hasUnsavedAttendanceDraft: false,
+  },
+  // iOS 数据保护和存储
+  iosStandaloneMode: false,
+  lastActivityAt: null,
+  backupReminderDismissedUntil: null,
+  lastBackupTime: null,
+  persistentStorageGranted: false,
+  ocrOfflineReady: false,
+  ocrCacheVersion: null,
+  storageEstimate: { usage: 0, quota: 0 },
 };
 
 const app = document.querySelector('#app');
 let dbPromise;
 let ocrWorkerPromise;
+
+// 活跃度节流：防止过于频繁地写入数据库
+let lastActivityWriteTime = 0;
+const ACTIVITY_WRITE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 小时
 
 function todayString() {
   const date = new Date();
@@ -100,12 +137,33 @@ function formatReportDate(value) {
   return `${Number(month)}月${Number(day)}日`;
 }
 
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 10) / 10 + ' ' + sizes[i];
+}
+
 function normalizeRoomNo(value) {
   return String(value || '').trim() || '未分配';
 }
 
 function normalizeClassName(value) {
   return String(value || '').trim() || '未分班';
+}
+
+const OCR_ASSET_PATHS = {
+  worker: '/ocr/v1/worker.min.js',
+  core: '/ocr/v1/core',
+  lang: '/ocr/v1/lang',
+  coreFile: '/ocr/v1/core/tesseract-core.wasm.js',
+  chiLang: '/ocr/v1/lang/chi_sim.traineddata.gz',
+  engLang: '/ocr/v1/lang/eng.traineddata.gz',
+};
+
+function resolveLocalAssetUrl(path) {
+  return new URL(String(path).replace(/^(?:\.\/|\/)+/, ''), document.baseURI).href;
 }
 
 
@@ -130,6 +188,90 @@ function supportsNativeUpdate() {
       && typeof bridge.getUpdateStatus === 'function'
       && getNativeAppInfo(),
   );
+}
+
+/**
+ * 检测 iOS standalone 模式（已添加到主屏幕）
+ * 在启动和 visibilitychange 时调用以更新状态
+ */
+function checkIosStandaloneMode() {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+}
+
+/**
+ * 请求持久化存储权限
+ * @returns {Promise<boolean>} 是否授予
+ */
+async function requestPersistentStorage() {
+  try {
+    if (!navigator.storage?.persist) {
+      console.info('[Storage] Persistent storage not supported');
+      return false;
+    }
+    const granted = await navigator.storage.persist();
+    console.info('[Storage] Persistent storage request:', granted ? 'granted' : 'denied');
+    return granted;
+  } catch (error) {
+    console.error('[Storage] Failed to request persistent storage:', error);
+    return false;
+  }
+}
+
+/**
+ * 更新存储容量估计
+ * @returns {Promise<{usage: number, quota: number}>}
+ */
+async function updateStorageEstimate() {
+  try {
+    if (!navigator.storage?.estimate) {
+      console.info('[Storage] Storage estimate not supported');
+      return { usage: 0, quota: 0 };
+    }
+    const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+    return { usage, quota };
+  } catch (error) {
+    console.error('[Storage] Failed to estimate storage:', error);
+    return { usage: 0, quota: 0 };
+  }
+}
+
+/**
+ * 计算 SHA-256 哈希（用于备份完整性校验）
+ * @param {string} data 数据字符串
+ * @returns {Promise<string>} 十六进制哈希
+ */
+async function sha256(data) {
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * 记录有意义的活动（带节流）
+ * 应在保存、导入、恢复等重要操作后调用
+ * @returns {Promise<void>}
+ */
+async function recordMeaningfulActivity() {
+  const now = Date.now();
+  if (now - lastActivityWriteTime < ACTIVITY_WRITE_INTERVAL_MS) {
+    return; // 节流中，不写入
+  }
+
+  try {
+    const timestamp = new Date(now).toISOString();
+    await dbPut(STORES.settings, {
+      key: 'lastActivityAt',
+      value: timestamp,
+    });
+    state.lastActivityAt = new Date(timestamp);
+    lastActivityWriteTime = now;
+    console.info('[Activity] Recorded at', timestamp);
+  } catch (error) {
+    console.error('[Activity] Failed to record:', error);
+  }
 }
 
 function isValidBusinessDate(value) {
@@ -453,48 +595,6 @@ function getCounts(records) {
   );
 }
 
-function buildReport(session, records = getSessionRecords(session.id), students = getRoomStudents(session.roomNo, false)) {
-  const studentById = new Map(students.map((student) => [student.id, student]));
-  const counts = getCounts(records);
-  const expected = records.length;
-  const actual = counts.present;
-  const leave = counts.leave;
-  const checker = session.checkerName || state.checkerName || '未填写查寝人';
-  const lines = [
-    `${formatReportDate(session.businessDate)}${session.roomNo}寝（${checker}）`,
-    `应到 ${expected} 人实到 ${actual} 人，${leave} 人请假已核实`,
-  ];
-
-  const reportMembers = records.map((record) => {
-    const student = studentById.get(record.studentId);
-    return {
-      record,
-      className: student?.className || record.classNameSnapshot || '未分班',
-      name: student?.name || record.studentNameSnapshot || '未知学生',
-    };
-  });
-
-  const leaveByClass = new Map();
-  reportMembers
-    .filter(({ record }) => record.status === 'leave')
-    .forEach(({ className, name }) => {
-      if (!leaveByClass.has(className)) leaveByClass.set(className, []);
-      leaveByClass.get(className).push(name);
-    });
-
-  const classNames = [...new Set([
-    ...students.map((student) => student.className || '未分班'),
-    ...reportMembers.map((member) => member.className),
-  ])].sort(compareText);
-
-  classNames.forEach((className) => {
-    const names = leaveByClass.get(className) || [];
-    lines.push(`${className} ${names.join('、')}`.trimEnd());
-  });
-
-  return lines.join('\n');
-}
-
 function iconButton(icon, label, action, extra = '') {
   return `<button class="icon-button ${extra}" type="button" data-action="${action}" aria-label="${label}" title="${label}">
     <i data-lucide="${icon}" aria-hidden="true"></i>
@@ -518,21 +618,86 @@ function renderShell(content) {
     ['manage', 'list-plus', '名单'],
   ];
 
+  const pwaUpdateBanner = state.pwaUpdateAvailable
+    ? `
+      <div class="pwa-update-banner" role="alert">
+        <div class="banner-content">
+          <p><strong>新版本可用</strong> — 应用已更新，点击安装获得最新功能和修复。</p>
+        </div>
+        <button type="button" class="banner-action-button" data-action="install-pwa-update">
+          <span>安装</span>
+          <i data-lucide="download" aria-hidden="true"></i>
+        </button>
+      </div>
+    `
+    : '';
+
+  // 计算是否应该显示备份提醒
+  let backupReminderBanner = '';
+  if (state.lastActivityAt) {
+    const lastActivityTime = new Date(state.lastActivityAt);
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+    const dismissedUntil = state.backupReminderDismissedUntil ? new Date(state.backupReminderDismissedUntil) : null;
+    const now = new Date();
+
+    // 如果最后活动时间超过 5 天，且未被最近关闭，则显示提醒
+    if (lastActivityTime < fiveDaysAgo && (!dismissedUntil || dismissedUntil < now)) {
+      backupReminderBanner = `
+        <div class="backup-reminder-banner" role="alert">
+          <div class="banner-content">
+            <p><strong>建议备份</strong> — 已有 5 天未备份本地数据。点击导出备份以防止数据丢失。</p>
+          </div>
+          <div class="banner-actions">
+            <button type="button" class="text-button" data-action="dismiss-backup-reminder">暂不</button>
+            <button type="button" class="primary-button" data-action="navigate" data-route="manage">
+              <span>导出备份</span>
+              <i data-lucide="download" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // 计算存储配额百分比
+  let storageQuotaBanner = '';
+  if (state.iosStandaloneMode && state.storageEstimate.quota > 0) {
+    const usagePercent = Math.round((state.storageEstimate.usage / state.storageEstimate.quota) * 100);
+    if (usagePercent > 80) {
+      storageQuotaBanner = `
+        <div class="storage-quota-banner warning" role="alert">
+          <div class="banner-content">
+            <p><strong>存储空间即将满</strong> — 已使用 ${usagePercent}% 的本地存储 (${formatBytes(state.storageEstimate.usage)} / ${formatBytes(state.storageEstimate.quota)})。</p>
+          </div>
+          <button type="button" class="banner-action-button" data-action="navigate" data-route="manage">
+            <span>清理数据</span>
+            <i data-lucide="trash-2" aria-hidden="true"></i>
+          </button>
+        </div>
+      `;
+    }
+  }
+
   return `
     <div class="app-shell">
+      ${pwaUpdateBanner}
+      ${backupReminderBanner}
+      ${storageQuotaBanner}
       <header class="topbar">
         <div class="topbar-brand-row">
-          <div class="brand-mark"><img src="/icons/catcheck-icon.png" alt="" /></div>
+          <div class="brand-mark"><img src="icons/catcheck-icon.png" alt="" /></div>
           <h1 class="topbar-title">喵喵查寝</h1>
-          <span class="topbar-balance" aria-hidden="true"></span>
+          <button class="github-button" type="button" data-action="open-join-dialog" aria-label="加入我们" title="加入我们">
+            <i data-lucide="github" aria-hidden="true"></i>
+          </button>
         </div>
         <nav class="top-nav" aria-label="主导航">
           ${navItems
             .map(
               ([route, icon, label]) => `
               <button type="button" class="nav-item${state.route === route ? ' is-active' : ''}" data-action="navigate" data-route="${route}">
-                <i data-lucide="${icon}" aria-hidden="true"></i>
-                <span>${label}</span>
+                <span class="nav-item-icon"><i data-lucide="${icon}" aria-hidden="true"></i></span>
+                <span class="nav-item-label">${label}</span>
               </button>`,
             )
             .join('')}
@@ -541,6 +706,8 @@ function renderShell(content) {
       <main class="main-content">${content}</main>
       <div id="toast-root" aria-live="polite"></div>
       ${state.startDialogOpen ? renderStartDialog() : ''}
+      ${state.joinDialogOpen ? renderJoinDialog() : ''}
+      ${renderReportDialog()}
     </div>
   `;
 }
@@ -559,6 +726,22 @@ function renderStartDialog() {
         <div class="dialog-actions">
           <button class="text-button" type="button" data-action="cancel-start-check">取消</button>
           <button class="primary-button" type="button" data-action="confirm-start-check"><i data-lucide="play"></i><span>进入查寝</span></button>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderJoinDialog() {
+  return `
+    <div class="modal-scrim" role="presentation">
+      <section class="md-dialog join-dialog" role="dialog" aria-modal="true" aria-labelledby="join-dialog-title">
+        <div class="dialog-icon join-dialog-icon"><i data-lucide="github" aria-hidden="true"></i></div>
+        <h2 id="join-dialog-title">加入我们</h2>
+        <p>欢迎一起完善喵喵查寝。项目地址已放在下方按钮中，点击即可打开项目仓库。</p>
+        <div class="dialog-actions">
+          <button class="text-button" type="button" data-action="close-join-dialog">取消</button>
+          <button class="primary-button" type="button" data-action="open-project"><i data-lucide="external-link"></i><span>查看项目</span></button>
         </div>
       </section>
     </div>
@@ -627,9 +810,21 @@ function renderHome() {
     </section>
     <section class="content-section today-start-section">
       ${startPanel}
-      <button class="text-button today-manage-link" type="button" data-action="navigate" data-route="manage">
-        <i data-lucide="settings-2"></i><span>管理名单</span>
-      </button>
+    </section>
+    <section class="quick-section" aria-label="快捷入口">
+      <h2>快捷入口</h2>
+      <div class="quick-entry-list">
+        <button class="quick-entry-card" type="button" data-action="navigate" data-route="manage">
+          <span class="quick-entry-icon"><i data-lucide="list-plus" aria-hidden="true"></i></span>
+          <span><strong>管理名单</strong><small>导入 / 识别 / 导出名单</small></span>
+          <i data-lucide="chevron-right" aria-hidden="true"></i>
+        </button>
+        <button class="quick-entry-card" type="button" data-action="navigate" data-route="history">
+          <span class="quick-entry-icon"><i data-lucide="history" aria-hidden="true"></i></span>
+          <span><strong>历史记录</strong><small>查看本机保存的查寝结果</small></span>
+          <i data-lucide="chevron-right" aria-hidden="true"></i>
+        </button>
+      </div>
     </section>
   `;
 }
@@ -694,6 +889,66 @@ function renderReportActions() {
   `;
 }
 
+function buildReportInput(scope, sessions, generatedAt = new Date().toISOString()) {
+  const selectedSessions = Array.isArray(sessions) ? sessions : [];
+  const sessionIds = new Set(selectedSessions.map((session) => session?.id));
+  const useDraftRecords =
+    scope === 'session' &&
+    state.route === 'attendance' &&
+    state.attendanceDraft?.id === selectedSessions[0]?.id;
+
+  return {
+    scope,
+    sessions: selectedSessions,
+    records: useDraftRecords
+      ? state.attendanceDraft.records
+      : state.records.filter((record) => sessionIds.has(record.sessionId)),
+    students: state.students,
+    generatedAt,
+  };
+}
+
+function buildReportResult(scope, sessions) {
+  return buildAttendanceReportModel(buildReportInput(scope, sessions));
+}
+
+function reportPreviewText(result, emptyMessage = '暂无已保存的查寝结果') {
+  if (result?.ok) return renderReportMarkdown(result.model);
+  if (!result?.errors?.length) return emptyMessage;
+  return `报告暂不可生成\n\n${result.errors.map((error) => `• ${error.code}：${error.message}`).join('\n')}`;
+}
+
+function currentSingleReportDescriptor(format = 'md') {
+  if (state.route === 'attendance' && state.attendanceDraft) {
+    return { scope: 'session', sessionIds: [state.attendanceDraft.id], format };
+  }
+  if (state.historySelectedSessionId) {
+    return { scope: 'session', sessionIds: [state.historySelectedSessionId], format };
+  }
+  return null;
+}
+
+function checkModeReportDescriptor(format = 'md') {
+  return { scope: 'check-mode', sessionIds: getCheckModeSessions().map((session) => session.id), format };
+}
+
+function sessionsForReportDescriptor(descriptor) {
+  const ids = new Set(descriptor?.sessionIds || []);
+  if (!ids.size) return [];
+  return [...ids]
+    .map((id) => {
+      if (descriptor.scope === 'session' && state.route === 'attendance' && state.attendanceDraft?.id === id) {
+        return state.attendanceDraft;
+      }
+      return state.sessions.find((session) => session.id === id);
+    })
+    .filter(Boolean);
+}
+
+function buildReportFromDescriptor(descriptor) {
+  return buildReportResult(descriptor?.scope, sessionsForReportDescriptor(descriptor));
+}
+
 function renderAttendance() {
   const students = getRoomStudents(state.selectedRoomNo);
   const draft = state.attendanceDraft || { records: [] };
@@ -708,8 +963,8 @@ function renderAttendance() {
     const matchesFilter = state.attendanceFilter === 'all' || normalizeStatus(record.status) === state.attendanceFilter;
     return matchesSearch && matchesFilter;
   });
-
-  const reportText = draft?.status === 'completed' ? buildReport(draft, draft.records, getRoomStudents(draft.roomNo, false)) : '';
+  const reportResult = draft?.status === 'completed' ? buildReportResult('session', [draft]) : null;
+  const reportText = reportResult ? reportPreviewText(reportResult) : '';
 
   const list = filtered.length
     ? filtered
@@ -730,7 +985,7 @@ function renderAttendance() {
                 <div class="status-actions">
                   ${Object.keys(STATUS_META).map((status) => statusButton(status, recordStatus === status)).join('')}
                 </div>
-                ${recordStatus !== 'present' ? `<label class="reason-field">${recordStatus === 'leave' ? '请假原因' : '未到原因'}
+                ${recordStatus !== 'present' ? `<label class="reason-field reason-field-${recordStatus}">${recordStatus === 'leave' ? '请假原因' : '未到原因'}
                   <input type="text" data-role="remark" data-student-id="${student.id}" value="${escapeHtml(record.remark || '')}" placeholder="请输入原因" maxlength="80" />
                 </label>` : ''}
               </div>
@@ -767,19 +1022,13 @@ function renderAttendance() {
       <label class="search-field">
         <i data-lucide="search"></i>
         <input type="search" id="attendance-search" value="${escapeHtml(state.attendanceSearch)}" placeholder="搜索姓名或班级" />
-        ${
-          state.attendanceSearch
-            ? `<button type="button" data-action="clear-attendance-search" aria-label="清除搜索"><i data-lucide="x"></i></button>`
-            : ''
-        }
+        ${state.attendanceSearch ? `<button type="button" data-action="clear-attendance-search" aria-label="清除搜索"><i data-lucide="x"></i></button>` : ''}
       </label>
       <div class="filter-tabs">
-        ${[['all', '全部'], ['absent', '未到'], ['leave', '请假']]
-          .map(
-            ([filter, label]) =>
-              `<button type="button" class="${state.attendanceFilter === filter ? 'is-active' : ''}" data-action="filter-attendance" data-filter="${filter}">${label}</button>`,
-          )
-          .join('')}
+        ${[['all', '全部'], ['absent', '未到'], ['leave', '请假']].map(([filter, label]) => {
+          const active = state.attendanceFilter === filter;
+          return `<button type="button" class="${active ? 'is-active' : ''}" data-action="filter-attendance" data-filter="${filter}">${active ? '<i data-lucide="check" aria-hidden="true"></i>' : ''}${label}</button>`;
+        }).join('')}
       </div>
     </section>
     <section class="student-list-section">
@@ -787,24 +1036,9 @@ function renderAttendance() {
       <div class="student-list">${list}</div>
       <div class="save-bar" aria-label="查寝保存操作">
         <button class="secondary-button" type="button" data-action="save-attendance"><i data-lucide="save"></i><span>保存</span></button>
-        <button class="primary-button save-button" type="button" data-action="save-and-next">
-          <i data-lucide="${state.checkMode ? 'arrow-right' : 'save'}"></i><span>${state.checkMode ? '下一个寝室' : '更新保存'}</span>
-        </button>
+        <button class="primary-button save-button" type="button" data-action="save-and-next"><i data-lucide="${state.checkMode ? 'arrow-right' : 'save'}"></i><span>${state.checkMode ? '下一个寝室' : '更新保存'}</span></button>
       </div>
-      ${
-        reportText
-          ? `<div class="report-panel">
-              <div class="detail-header">
-                <div>
-                  <p class="section-kicker">REPORT TEXT</p>
-                  <h3>汇报文字</h3>
-                </div>
-                ${renderReportActions()}
-              </div>
-              <pre id="report-text">${escapeHtml(reportText)}</pre>
-            </div>`
-          : ''
-      }
+      ${reportText ? `<div class="report-panel"><div class="detail-header"><div><p class="section-kicker">REPORT MODEL</p><h3>报告预览</h3></div>${renderReportActions()}</div><pre id="report-text">${escapeHtml(reportText)}</pre></div>` : ''}
     </section>
   `;
 }
@@ -815,21 +1049,18 @@ function getCheckModeSessions() {
   return state.sessions.filter((session) => session.businessDate === date && ids.has(session.id));
 }
 
-function getCheckModeReports() {
-  return getCheckModeSessions().map((session) => buildReport(session, getSessionRecords(session.id), getRoomStudents(session.roomNo, false)));
-}
-
 function renderExport() {
-  const reports = getCheckModeReports();
-  const text = reports.join('\n\n');
+  const sessions = getCheckModeSessions();
+  const reportResult = buildReportResult('check-mode', sessions);
+  const text = reportPreviewText(reportResult);
   return `
     <section class="page-header export-header">
       <button class="back-button" type="button" data-action="navigate" data-route="room-select" title="返回宿舍选择"><i data-lucide="arrow-left"></i></button>
-      <div class="page-header-copy"><p class="section-kicker">EXPORT</p><h2>导出查寝结果</h2><p>${formatDate(state.checkMode?.date || state.attendanceDate, true)} · ${reports.length} 个宿舍</p></div>
+      <div class="page-header-copy"><p class="section-kicker">EXPORT</p><h2>导出查寝结果</h2><p>${formatDate(state.checkMode?.date || state.attendanceDate, true)} · ${sessions.length} 个宿舍</p></div>
       <span class="local-pill"><i data-lucide="hard-drive-download"></i>本机生成</span>
     </section>
-    <section class="export-summary-card"><div class="export-summary-icon"><i data-lucide="file-check-2"></i></div><div><strong>本次查寝已结束</strong><p>请选择一种格式保存全部宿舍的查寝结果。</p></div></section>
-    <section class="report-panel export-report-panel"><div class="detail-header"><div><p class="section-kicker">PREVIEW</p><h3>汇报预览</h3></div><button class="secondary-button" type="button" data-action="copy-check-results"><i data-lucide="copy"></i><span>复制全部</span></button></div><pre id="report-text">${escapeHtml(text || '暂无已保存的查寝结果')}</pre></section>
+    <section class="export-summary-card"><div class="export-summary-icon"><i data-lucide="file-check-2"></i></div><div><strong>本次查寝已结束</strong><p>所有格式均从同一份报告模型生成，统计与异常名单保持一致。</p></div></section>
+    <section class="report-panel export-report-panel"><div class="detail-header"><div><p class="section-kicker">PREVIEW</p><h3>报告预览</h3></div><button class="secondary-button" type="button" data-action="copy-check-results"><i data-lucide="copy"></i><span>复制全部</span></button></div><pre id="report-text">${escapeHtml(text)}</pre></section>
     <section class="export-format-section"><div class="section-heading"><div><p class="section-kicker">FORMAT</p><h2>选择生成格式</h2></div></div><div class="export-actions export-actions-large">
       <button class="export-action" type="button" data-action="export-check-results" data-format="md"><i data-lucide="file-text"></i><span>文字 / Markdown</span></button>
       <button class="export-action" type="button" data-action="export-check-results" data-format="png"><i data-lucide="image"></i><span>PNG 图片</span></button>
@@ -847,119 +1078,29 @@ function renderHistory() {
     const matchesRoom = !state.historyRoomNo || session.roomNo === state.historyRoomNo;
     return matchesDate && matchesRoom;
   });
-  const selectedSession = state.historySelectedSessionId
-    ? state.sessions.find((session) => session.id === state.historySelectedSessionId)
-    : null;
+  const selectedSession = state.historySelectedSessionId ? state.sessions.find((session) => session.id === state.historySelectedSessionId) : null;
   const selectedRecords = selectedSession ? getSessionRecords(selectedSession.id) : [];
-  const selectedStudents = selectedSession ? getRoomStudents(selectedSession.roomNo, false) : [];
-  const reportText = selectedSession ? buildReport(selectedSession, selectedRecords, selectedStudents) : '';
-  const selectedRows = selectedSession
-    ? selectedRecords
-        .map((record) => {
-          const student = selectedStudents.find((item) => item.id === record.studentId);
-          return { record, student };
-        })
-        .sort((a, b) => compareText(a.student?.className, b.student?.className) || compareText(a.student?.name, b.student?.name))
-        .map(
-          ({ record, student }) => `
-          <div class="history-student-row">
-            <span class="room-badge">${escapeHtml(student?.className || record.classNameSnapshot || '未分班')}</span>
-            <div class="history-student-name">
-              <strong>${escapeHtml(student?.name || record.studentNameSnapshot || '未知学生')}</strong>
-              <span>${escapeHtml(student?.roomNo || record.roomNoSnapshot || '')} 寝</span>
-            </div>
-            <span class="history-status status-${STATUS_META[record.status]?.tone || 'present'}">
-              <i data-lucide="${STATUS_META[record.status]?.icon || 'circle'}"></i>${STATUS_META[record.status]?.label || record.status}
-            </span>
-            ${record.remark ? `<span class="history-remark">${escapeHtml(record.remark)}</span>` : ''}
-          </div>
-        `,
-        )
-        .join('')
+  const reportResult = selectedSession ? buildReportResult('session', [selectedSession]) : null;
+  const selectedSummary = reportResult?.ok ? reportResult.model.summary : getCounts(selectedRecords);
+  const reportText = reportResult ? reportPreviewText(reportResult) : '';
+  const selectedRows = reportResult?.ok
+    ? reportResult.model.rows.map((row) => `
+        <div class="history-student-row">
+          <span class="room-badge">${escapeHtml(row.className)}</span>
+          <div class="history-student-name"><strong>${escapeHtml(row.studentName)}</strong><span>${escapeHtml(row.roomNo)} 寝</span></div>
+          <span class="history-status status-${STATUS_META[row.status].tone}"><i data-lucide="${STATUS_META[row.status].icon}"></i>${STATUS_META[row.status].label}</span>
+          ${row.remark ? `<span class="history-remark">${escapeHtml(row.remark)}</span>` : ''}
+        </div>`).join('')
     : '';
 
   return `
-    <section class="page-header">
-      <div class="page-header-copy">
-        <p class="section-kicker">ARCHIVE</p>
-        <h2>历史记录</h2>
-        <p>按日期和宿舍号查看本机保存的查寝结果。</p>
-      </div>
-      <span class="local-pill"><i data-lucide="database"></i>本地数据库</span>
-    </section>
-    <section class="history-filters">
-      <label class="field-label">日期
-        <input type="date" id="history-date" value="${state.historyDate}" />
-      </label>
-      <label class="field-label">宿舍号
-        <select id="history-room">
-          <option value="">全部宿舍</option>
-          ${rooms.map((room) => `<option value="${escapeHtml(room.roomNo)}"${room.roomNo === state.historyRoomNo ? ' selected' : ''}>${escapeHtml(room.roomNo)} 寝</option>`).join('')}
-        </select>
-      </label>
-      <button class="secondary-button filter-reset" type="button" data-action="reset-history-filters">
-        <i data-lucide="rotate-ccw"></i><span>清除</span>
-      </button>
-    </section>
-    <section class="history-layout">
-      <div class="history-list-panel">
-        <div class="list-heading"><span>查寝批次</span><span>${filteredSessions.length} 条</span></div>
-        ${
-          filteredSessions.length
-            ? `<div class="history-list">${filteredSessions
-                .map((session) => {
-                  const records = getSessionRecords(session.id);
-                  const counts = getCounts(records);
-                  return `
-                    <button class="history-card${session.id === state.historySelectedSessionId ? ' is-selected' : ''}" type="button" data-action="select-history" data-session-id="${session.id}">
-                      <div class="history-card-date"><strong>${formatDate(session.businessDate)}</strong><span>${session.status === 'completed' ? '已保存' : '草稿'}</span></div>
-                      <h3>${escapeHtml(session.roomNo)} 寝</h3>
-                      <div class="mini-counts"><span class="status-present">实到 ${counts.present}</span><span class="status-absent">未到 ${counts.absent}</span><span class="status-leave">请假 ${counts.leave}</span></div>
-                    </button>
-                  `;
-                })
-                .join('')}</div>`
-            : `<div class="empty-state"><div class="empty-icon"><i data-lucide="calendar-off"></i></div><h3>暂无历史记录</h3><p>完成第一次查寝后，记录会出现在这里。</p></div>`
-        }
-      </div>
-      <div class="history-detail-panel">
-        ${
-          selectedSession
-            ? `
-            <div class="detail-header">
-              <div>
-                <p class="section-kicker">${formatDate(selectedSession.businessDate, true)}</p>
-                <h3>${escapeHtml(selectedSession.roomNo)} 寝</h3>
-              </div>
-              <button class="icon-button" type="button" data-action="edit-history" data-session-id="${selectedSession.id}" aria-label="编辑这次查寝" title="编辑这次查寝"><i data-lucide="pencil"></i></button>
-            </div>
-            <div class="detail-counts">
-              ${Object.entries(getCounts(selectedRecords))
-                .map(([status, count]) => `<div class="detail-count ${STATUS_META[status].tone}"><strong>${count}</strong><span>${STATUS_META[status].label}</span></div>`)
-                .join('')}
-            </div>
-            <div class="report-panel compact-report">
-              <div class="detail-header">
-                <div><p class="section-kicker">REPORT TEXT</p><h3>汇报文字</h3></div>
-                ${renderReportActions()}
-              </div>
-              <pre id="report-text">${escapeHtml(reportText)}</pre>
-            </div>
-            <div class="history-student-list">${selectedRows || '<div class="empty-state"><p>没有保存的学生记录。</p></div>'}</div>
-          `
-            : `
-            <div class="empty-state empty-state-detail">
-              <div class="empty-icon"><i data-lucide="mouse-pointer-click"></i></div>
-              <h3>选择一条记录</h3>
-              <p>查看该次查寝的完整名单和生成文字。</p>
-            </div>
-          `
-        }
-      </div>
+    <section class="page-header"><div class="page-header-copy"><p class="section-kicker">ARCHIVE</p><h2>历史记录</h2><p>按日期和宿舍号查看本机保存的查寝结果。</p></div><span class="local-pill"><i data-lucide="database"></i>本地数据库</span></section>
+    <section class="history-filters"><label class="field-label">日期<input type="date" id="history-date" value="${state.historyDate}" /></label><label class="field-label">宿舍号<select id="history-room"><option value="">全部宿舍</option>${rooms.map((room) => `<option value="${escapeHtml(room.roomNo)}"${room.roomNo === state.historyRoomNo ? ' selected' : ''}>${escapeHtml(room.roomNo)} 寝</option>`).join('')}</select></label><button class="secondary-button filter-reset" type="button" data-action="reset-history-filters"><i data-lucide="rotate-ccw"></i><span>清除</span></button></section>
+    <section class="history-layout"><div class="history-list-panel"><div class="list-heading"><span>查寝批次</span><span>${filteredSessions.length} 条</span></div>${filteredSessions.length ? `<div class="history-list">${filteredSessions.map((session) => { const counts = getCounts(getSessionRecords(session.id)); return `<button class="history-card${session.id === state.historySelectedSessionId ? ' is-selected' : ''}" type="button" data-action="select-history" data-session-id="${session.id}"><div class="history-card-date"><strong>${formatDate(session.businessDate)}</strong><span>${session.status === 'completed' ? '已保存' : '草稿'}</span></div><h3>${escapeHtml(session.roomNo)} 寝</h3><div class="mini-counts"><span class="status-present">实到 ${counts.present}</span><span class="status-absent">未到 ${counts.absent}</span><span class="status-leave">请假 ${counts.leave}</span></div></button>`; }).join('')}</div>` : `<div class="empty-state"><div class="empty-icon"><i data-lucide="calendar-off"></i></div><h3>暂无历史记录</h3><p>完成第一次查寝后，记录会出现在这里。</p></div>`}</div>
+      <div class="history-detail-panel">${selectedSession ? `<div class="detail-header"><div><p class="section-kicker">${formatDate(selectedSession.businessDate, true)}</p><h3>${escapeHtml(selectedSession.roomNo)} 寝</h3></div><button class="icon-button" type="button" data-action="edit-history" data-session-id="${selectedSession.id}" aria-label="编辑这次查寝" title="编辑这次查寝"><i data-lucide="pencil"></i></button></div><div class="detail-counts">${Object.entries({ present: selectedSummary.present, absent: selectedSummary.absent, leave: selectedSummary.leave }).map(([status, count]) => `<div class="detail-count ${STATUS_META[status].tone}"><strong>${count}</strong><span>${STATUS_META[status].label}</span></div>`).join('')}</div><div class="report-panel compact-report"><div class="detail-header"><div><p class="section-kicker">REPORT MODEL</p><h3>报告预览</h3></div>${renderReportActions()}</div><pre id="report-text">${escapeHtml(reportText)}</pre></div><div class="history-student-list">${selectedRows || '<div class="empty-state"><p>报告数据不完整，无法显示名单。</p></div>'}</div>` : `<div class="empty-state empty-state-detail"><div class="empty-icon"><i data-lucide="mouse-pointer-click"></i></div><h3>选择一条记录</h3><p>查看该次查寝的完整名单和生成文字。</p></div>`}</div>
     </section>
   `;
 }
-
 function renderManage() {
   const rooms = getRooms();
   const totalStudents = state.students.filter((student) => student.isActive !== false).length;
@@ -1087,6 +1228,7 @@ function renderManage() {
       </div>
     </section>
     ${renderUpdatePanel()}
+    ${renderStoragePanel()}
     <section class="backup-panel">
       <div class="panel-heading">
         <div>
@@ -1167,6 +1309,87 @@ function renderUpdatePanel() {
     '</section>',
   ].join('');
 }
+
+function renderStoragePanel() {
+  // 仅在 iOS 或支持 Storage API 的环境中显示
+  if (!state.iosStandaloneMode) {
+    return '';
+  }
+
+  const usagePercent = state.storageEstimate.quota > 0
+    ? Math.round((state.storageEstimate.usage / state.storageEstimate.quota) * 100)
+    : 0;
+
+  const lastBackupTime = state.lastBackupTime
+    ? formatDate(state.lastBackupTime.toISOString().split('T')[0])
+    : '从未备份';
+
+  const ocrCacheDate = state.ocrCacheVersion
+    ? formatDate(new Date(state.ocrCacheVersion).toISOString().split('T')[0])
+    : '未准备';
+
+  return `
+    <section class="storage-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">DATA PROTECTION</p>
+          <h3>数据保护</h3>
+        </div>
+        <i data-lucide="lock"></i>
+      </div>
+      <p class="panel-copy">管理本地存储空间，保护离线数据。本应用不使用云同步，所有数据仅存在本设备中。</p>
+      <div class="storage-info">
+        <div class="storage-item">
+          <div class="storage-label">本地存储空间</div>
+          <div class="storage-detail">
+            <div class="storage-bar">
+              <div class="storage-used" style="width: ${usagePercent}%"></div>
+            </div>
+            <p class="storage-text">${usagePercent}% 已用 (${formatBytes(state.storageEstimate.usage)} / ${formatBytes(state.storageEstimate.quota)})</p>
+          </div>
+        </div>
+        <div class="storage-item">
+          <div class="storage-label">最后备份</div>
+          <div class="storage-detail">${escapeHtml(lastBackupTime)}</div>
+        </div>
+        ${state.persistentStorageGranted ? `
+        <div class="storage-item">
+          <div class="storage-label">持久化存储</div>
+          <div class="storage-detail">已启用 <i data-lucide="check-circle" class="check-icon"></i></div>
+        </div>
+        ` : `
+        <div class="storage-item">
+          <div class="storage-label">持久化存储</div>
+          <div class="storage-detail">
+            <p class="storage-text">启用持久化存储后，即使清理浏览器缓存，应用数据也会保留。</p>
+            <button class="primary-button" type="button" data-action="request-persistent-storage">
+              <i data-lucide="unlock"></i><span>启用持久化存储</span>
+            </button>
+          </div>
+        </div>
+        `}
+        ${state.ocrOfflineReady ? `
+        <div class="storage-item">
+          <div class="storage-label">离线 OCR 资源</div>
+          <div class="storage-detail">已准备 (${escapeHtml(ocrCacheDate)}) <i data-lucide="check-circle" class="check-icon"></i></div>
+        </div>
+        ` : `
+        <div class="storage-item">
+          <div class="storage-label">离线 OCR 资源</div>
+          <div class="storage-detail">
+            <p class="storage-text">下载 OCR 语言模型和运行时文件后，可离线识别图片中的学生信息。需要网络和足够存储空间。</p>
+            ${state.ocrProgress ? `<p class="ocr-progress">${escapeHtml(state.ocrProgress)}</p>` : ''}
+            <button class="primary-button" type="button" data-action="prepare-offline-ocr" ${state.ocrProgress ? 'disabled' : ''}>
+              <i data-lucide="download"></i><span>${state.ocrProgress ? '准备中...' : '准备离线 OCR'}</span>
+            </button>
+          </div>
+        </div>
+        `}
+      </div>
+    </section>
+  `;
+}
+
 
 function renderCommuterManage() {
   const roomNo = normalizeRoomNo(state.commuterRoomNo);
@@ -1337,6 +1560,7 @@ async function toggleCommuter(studentId) {
 async function saveAttendance({ navigateAfter = false } = {}) {
   if (!state.attendanceDraft || state.isBusy) return null;
   setBusy(true);
+  state.updateGuard.isSaving = true;
   try {
     const now = new Date().toISOString();
     const roomStudents = getRoomStudents(state.attendanceDraft.roomNo);
@@ -1366,6 +1590,10 @@ async function saveAttendance({ navigateAfter = false } = {}) {
     if (state.checkMode && !state.checkMode.sessionIds.includes(draft.id)) {
       state.checkMode.sessionIds.push(draft.id);
     }
+
+    // 记录有意义的活动（带节流）
+    await recordMeaningfulActivity();
+
     if (navigateAfter && state.checkMode) {
       const nextRoom = getNextCheckRoom(draft.roomNo);
       if (nextRoom) {
@@ -1381,9 +1609,15 @@ async function saveAttendance({ navigateAfter = false } = {}) {
     return draft;
   } catch (error) {
     console.error(error);
-    showToast('保存失败，请重试', 'error');
+    // 检查是否是存储配额错误
+    if (error.name === 'QuotaExceededError') {
+      showToast('存储空间不足，请导出备份后清理数据', 'error');
+    } else {
+      showToast('保存失败，请重试', 'error');
+    }
     return null;
   } finally {
+    state.updateGuard.isSaving = false;
     setBusy(false);
   }
 }
@@ -1465,7 +1699,7 @@ function markAllPresent() {
   if (!state.attendanceDraft) return;
   state.attendanceDraft.records = getRoomStudents(state.selectedRoomNo).map((student) => {
     const current = ensureDraftRecord(student.id);
-    return { ...current, status: 'present', updatedAt: new Date().toISOString() };
+    return { ...current, status: 'present', remark: '', updatedAt: new Date().toISOString() };
   });
   render();
   showToast('已将当前宿舍全部标记为到');
@@ -1501,9 +1735,9 @@ async function recognizeImage(file) {
   if (!ocrWorkerPromise) {
     ocrWorkerPromise = import('tesseract.js').then(({ createWorker }) =>
       createWorker('chi_sim+eng', 1, {
-        workerPath: '/ocr/worker.min.js',
-        corePath: '/ocr/core',
-        langPath: '/ocr/lang',
+        workerPath: resolveLocalAssetUrl(OCR_ASSET_PATHS.worker),
+        corePath: resolveLocalAssetUrl(OCR_ASSET_PATHS.core),
+        langPath: resolveLocalAssetUrl(OCR_ASSET_PATHS.lang),
         workerBlobURL: false,
         cacheMethod: 'write',
         logger: (message) => {
@@ -1605,6 +1839,7 @@ async function commitImportPreview() {
   const preview = state.importPreview;
   if (!preview?.rows?.length || state.isBusy) return;
   setBusy(true);
+  state.updateGuard.isImporting = true;
   try {
     const currentStudents = [...state.students];
     const existingByKey = new Map(currentStudents.map((student) => [
@@ -1651,12 +1886,21 @@ async function commitImportPreview() {
     await dbPutMany(STORES.students, writes);
     state.importPreview = null;
     await refreshData();
+
+    // 记录有意义的活动
+    await recordMeaningfulActivity();
+
     render();
     showToast(`导入完成，新增 ${added} 人，更新 ${updated} 人`, 'success');
   } catch (error) {
     console.error(error);
-    showToast('导入写入失败，本次没有完成导入', 'error');
+    if (error.name === 'QuotaExceededError') {
+      showToast('存储空间不足，导入失败', 'error');
+    } else {
+      showToast('导入写入失败，本次没有完成导入', 'error');
+    }
   } finally {
+    state.updateGuard.isImporting = false;
     setBusy(false);
   }
 }
@@ -1717,10 +1961,6 @@ function safeFileName(value, fallback = '喵喵查寝文件') {
     .trim() || fallback;
 }
 
-function safeSpreadsheetCell(value) {
-  const text = String(value ?? '');
-  return /^[=+\-@]/.test(text.trim()) ? `'${text}` : text;
-}
 
 function rosterRows() {
   return state.students
@@ -1809,11 +2049,192 @@ async function saveBlob(blob, filename) {
   return false;
 }
 
-function exportBackup() {
+function dismissBackupReminder() {
+  // 设置提醒关闭时间为 7 天后
+  const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  state.backupReminderDismissedUntil = sevenDaysLater.toISOString();
+  dbPut(STORES.settings, { key: 'backupReminderDismissedUntil', value: sevenDaysLater.toISOString() })
+    .catch((error) => console.warn('[Backup Reminder] Failed to save dismissal timestamp:', error));
+  render();
+  showToast('7 天内不再提醒', 'success');
+}
+
+async function requestPersistentStorageUser() {
+  try {
+    const persistent = await requestPersistentStorage();
+    if (persistent) {
+      state.persistentStorageGranted = true;
+      render();
+      showToast('持久化存储已启用，你的数据现在受到更好的保护', 'success');
+    } else {
+      showToast('系统拒绝了持久化存储请求，可能空间不足或设置限制', 'warning');
+    }
+  } catch (error) {
+    console.error('[Storage] Failed to request persistent:', error);
+    showToast('无法请求持久化存储，请检查浏览器设置', 'error');
+  }
+}
+
+async function prepareOfflineOcrUser() {
+  const result = await prepareOfflineOcr();
+  if (result.success) {
+    showToast(result.message, 'success');
+  } else {
+    showToast(result.message, 'error');
+  }
+}
+
+
+/**
+ * OCR 离线缓存清单：记录需要缓存的文件及其预期路径（版本化到 v1）
+ */
+const OCR_CACHE_MANIFEST = [
+  {
+    name: 'Tesseract.js Worker',
+    path: OCR_ASSET_PATHS.worker,
+    required: true,
+  },
+  {
+    name: 'Tesseract.js WASM Core',
+    path: OCR_ASSET_PATHS.coreFile,
+    required: true,
+  },
+  {
+    name: '中文语言模型',
+    path: OCR_ASSET_PATHS.chiLang,
+    required: true,
+  },
+  {
+    name: '英文语言模型',
+    path: OCR_ASSET_PATHS.engLang,
+    required: false,  // 可选但建议下载
+  },
+];
+
+/**
+ * 检查 OCR 缓存的完整性
+ * @returns {Promise<{ready: boolean, missing: Array<string>}>}
+ */
+async function checkOcrCacheIntegrity() {
+  const missing = [];
+
+  try {
+    const cache = await caches.open('catcheck-ocr-v1').catch(() => null);
+    if (!cache) {
+      return { ready: false, missing: OCR_CACHE_MANIFEST.filter(m => m.required).map(m => m.name) };
+    }
+
+    for (const item of OCR_CACHE_MANIFEST) {
+      if (item.required) {
+        const response = await cache.match(resolveLocalAssetUrl(item.path)).catch(() => null);
+        if (!response) {
+          missing.push(item.name);
+        }
+      }
+    }
+
+    return {
+      ready: missing.length === 0,
+      missing,
+    };
+  } catch (error) {
+    console.error('[OCR] Failed to check cache integrity:', error);
+    return { ready: false, missing: ['缓存检查失败'] };
+  }
+}
+
+/**
+ * 准备离线 OCR：下载所有必需的 OCR 资源到 Service Worker 缓存
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+async function prepareOfflineOcr() {
+  // 检查网络状态
+  if (!navigator.onLine) {
+    return { success: false, message: '设备离线，无法下载 OCR 资源' };
+  }
+
+  // 检查存储配额
+  const estimate = await updateStorageEstimate();
+  const requiredSpace = 200 * 1024 * 1024; // 约 200 MiB
+  const availableSpace = estimate.quota - estimate.usage;
+  if (availableSpace < requiredSpace) {
+    return {
+      success: false,
+      message: `存储空间不足，需要 ${formatBytes(requiredSpace)}，可用 ${formatBytes(availableSpace)}`
+    };
+  }
+
+  try {
+    state.ocrProgress = '正在打开缓存...';
+    render();
+    const cache = await caches.open('catcheck-ocr-v1');
+
+    let successCount = 0;
+    const requiredItems = OCR_CACHE_MANIFEST.filter(item => item.required);
+
+    for (let i = 0; i < OCR_CACHE_MANIFEST.length; i++) {
+      const item = OCR_CACHE_MANIFEST[i];
+      const fullUrl = resolveLocalAssetUrl(item.path);
+
+      try {
+        state.ocrProgress = `正在下载 ${item.name}... (${i + 1}/${OCR_CACHE_MANIFEST.length})`;
+        render();
+
+        const response = await fetch(fullUrl);
+        if (!response.ok) {
+          if (item.required) {
+            console.error(`[OCR] Failed to fetch required ${item.name}:`, response.status);
+            state.ocrProgress = '';
+            render();
+            return { success: false, message: `无法下载 ${item.name}` };
+          } else {
+            console.warn(`[OCR] Failed to fetch optional ${item.name}:`, response.status);
+            continue;
+          }
+        }
+
+        await cache.put(fullUrl, response.clone());
+        successCount++;
+      } catch (error) {
+        if (item.required) {
+          console.error(`[OCR] Exception while fetching ${item.name}:`, error);
+          state.ocrProgress = '';
+          render();
+          return { success: false, message: `下载失败: ${item.name}` };
+        } else {
+          console.warn(`[OCR] Exception while fetching optional ${item.name}:`, error);
+        }
+      }
+    }
+
+    // 验证完整性
+    const integrity = await checkOcrCacheIntegrity();
+    if (!integrity.ready) {
+      state.ocrProgress = '';
+      render();
+      return { success: false, message: `缓存验证失败，缺少: ${integrity.missing.join(', ')}` };
+    }
+
+    // 保存 OCR 缓存版本
+    const cacheVersion = new Date().toISOString();
+    await dbPut(STORES.settings, { key: 'ocrCacheVersion', value: cacheVersion });
+    state.ocrCacheVersion = cacheVersion;
+    state.ocrOfflineReady = true;
+
+    state.ocrProgress = '';
+    render();
+    return { success: true, message: `成功准备离线 OCR，共下载 ${successCount} 项资源` };
+  } catch (error) {
+    console.error('[OCR] Failed to prepare offline:', error);
+    state.ocrProgress = '';
+    render();
+    return { success: false, message: `准备失败: ${error.message}` };
+  }
+}
+
+async function exportBackup() {
+  // 先构造备份数据（version 3 格式）
   const payload = {
-    format: 'dorm-check-local-backup',
-    version: 2,
-    exportedAt: new Date().toISOString(),
     checkerName: state.checkerName,
     students: state.students.map((student) => ({
       id: student.id,
@@ -1828,8 +2249,33 @@ function exportBackup() {
     sessions: state.sessions,
     records: state.records,
   };
+
+  // 计算 payload 的 SHA-256 哈希
+  const payloadJson = JSON.stringify(payload);
+  const payloadSha256 = await sha256(payloadJson);
+
+  // 构造完整的备份格式 version 3
+  const backup = {
+    format: 'dorm-check-local-backup',
+    version: 3,
+    exportedAt: new Date().toISOString(),
+    payload,
+    integrity: {
+      algorithm: 'SHA-256',
+      payloadSha256,
+    },
+  };
+
+  // 更新最后备份时间
+  try {
+    await dbPut(STORES.settings, { key: 'lastBackupTime', value: backup.exportedAt });
+    state.lastBackupTime = new Date(backup.exportedAt);
+  } catch (error) {
+    console.warn('[Backup] Failed to update lastBackupTime:', error);
+  }
+
   saveBlob(
-    new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' }),
+    new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' }),
     `喵喵查寝备份_${todayString()}.json`,
   ).then((savedToDirectory) => {
     if (!savedToDirectory) showToast('本地备份已导出', 'success');
@@ -1868,118 +2314,283 @@ async function exportRoster(format) {
   if (!savedToDirectory) showToast(`已导出名单 ${format.toUpperCase()}`, 'success');
 }
 
-function reportContext() {
-  if (state.route === 'attendance' && state.attendanceDraft) {
-    return {
-      session: state.attendanceDraft,
-      records: state.attendanceDraft.records,
-      students: getRoomStudents(state.attendanceDraft.roomNo, false),
-    };
-  }
-  const session = state.sessions.find((item) => item.id === state.historySelectedSessionId);
-  if (!session) return null;
-  return {
-    session,
-    records: getSessionRecords(session.id),
-    students: getRoomStudents(session.roomNo, false),
+function reportExportStamp() {
+  const date = new Date();
+  const part = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}${part(date.getMonth() + 1)}${part(date.getDate())}_${part(date.getHours())}${part(date.getMinutes())}${part(date.getSeconds())}`;
+}
+
+function formatReportDiagnostic(diagnostic) {
+  const location = [diagnostic.sessionId, diagnostic.studentId].filter(Boolean).join(' / ');
+  return `${diagnostic.code}${location ? `（${location}）` : ''}：${diagnostic.message}`;
+}
+
+function openReportErrorDialog(errors, descriptor) {
+  state.reportDialog = { kind: 'error', errors, descriptor };
+  render();
+}
+
+function openReportWarningDialog(result, descriptor) {
+  state.reportDialog = {
+    kind: 'warning',
+    diagnostics: result.warnings,
+    fingerprint: createReportConfirmationFingerprint(result),
+    descriptor,
+    showDetails: false,
   };
+  render();
 }
 
-async function reportToImage(report, format) {
-  const lines = report.split('\n');
-  const canvas = document.createElement('canvas');
-  canvas.width = 1400;
-  canvas.height = Math.max(320, 100 + lines.length * 54);
-  const context = canvas.getContext('2d');
-  context.fillStyle = '#ffffff';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = '#17242f';
-  context.font = '32px "Microsoft YaHei", "SimSun", sans-serif';
-  lines.forEach((line, index) => context.fillText(line, 56, 78 + index * 54));
-  return new Promise((resolve) => canvas.toBlob(resolve, format === 'jpg' ? 'image/jpeg' : 'image/png', 0.92));
+function warningGroups(diagnostics) {
+  const groups = new Map();
+  diagnostics.forEach((warning) => {
+    const key = [warning.code, warning.sessionId || '', warning.details?.resolution || ''].join('|');
+    const current = groups.get(key) || { ...warning, count: 0, studentIds: [] };
+    current.count += 1;
+    if (warning.studentId) current.studentIds.push(warning.studentId);
+    groups.set(key, current);
+  });
+  return [...groups.values()];
 }
 
-async function exportReport(format) {
-  const context = reportContext();
-  const report = document.querySelector('#report-text')?.textContent || (context ? buildReport(context.session, context.records, context.students) : '');
-  if (!report) {
-    showToast('请先保存一次查寝，再导出汇报文字', 'error');
-    return;
+function renderReportDialog() {
+  const dialog = state.reportDialog;
+  if (!dialog) return '';
+  if (dialog.kind === 'error') {
+    const identifier = dialog.errors.map((item) => item.code).join(', ');
+    return `
+      <div class="modal-scrim" role="presentation">
+        <section class="md-dialog report-dialog" role="dialog" aria-modal="true" aria-labelledby="report-error-title">
+          <div class="dialog-icon dialog-icon-error"><i data-lucide="triangle-alert"></i></div>
+          <h2 id="report-error-title">报告暂不可导出</h2>
+          <p>数据未通过一致性校验，因此没有生成文件。请先修正或恢复记录。</p>
+          <ul class="report-diagnostic-list">${dialog.errors.map((error) => `<li><code>${escapeHtml(error.code)}</code><span>${escapeHtml(error.message)}</span></li>`).join('')}</ul>
+          <div class="dialog-actions report-dialog-actions">
+            <button class="secondary-button" type="button" data-action="report-error-back"><i data-lucide="arrow-left"></i><span>返回查寝记录</span></button>
+            <button class="secondary-button" type="button" data-action="report-error-backup"><i data-lucide="database-backup"></i><span>备份与恢复</span></button>
+            <button class="text-button" type="button" data-action="report-error-copy" data-diagnostic-id="${escapeHtml(identifier)}">复制诊断编号</button>
+          </div>
+        </section>
+      </div>`;
   }
-
-  const baseName = safeFileName(`查寝汇报_${context?.session?.businessDate || todayString()}_${context?.session?.roomNo || '宿舍'}`);
-  let blob;
-  let filename;
-  if (format === 'png' || format === 'jpg') {
-    blob = await reportToImage(report, format);
-    filename = `${baseName}.${format}`;
-  } else if (format === 'xlsx') {
-    const rows = report.split('\n').map((line, index) => ({ 序号: index + 1, 汇报内容: safeSpreadsheetCell(line) }));
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sheet, '汇报文字');
-    blob = new Blob([XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    filename = `${baseName}.xlsx`;
-  } else {
-    blob = new Blob([report], { type: 'text/markdown;charset=utf-8' });
-    filename = `${baseName}.md`;
+  if (dialog.kind === 'warning') {
+    const groups = warningGroups(dialog.diagnostics);
+    return `
+      <div class="modal-scrim" role="presentation">
+        <section class="md-dialog report-dialog" role="dialog" aria-modal="true" aria-labelledby="report-warning-title">
+          <div class="dialog-icon dialog-icon-warning"><i data-lucide="triangle-alert"></i></div>
+          <h2 id="report-warning-title">发现重复查寝记录</h2>
+          <p>系统已按“最新修改时间优先、时间相同则保留最后一条”生成报告。继续前请确认。</p>
+          <ul class="report-diagnostic-list">${groups.map((warning) => `<li><code>${escapeHtml(warning.code)}</code><span>${escapeHtml(`${warning.count} 组记录已采用 ${warning.details?.resolution === 'latest-updated-at' ? '最新修改' : '最后输入'}的内容`)}</span></li>`).join('')}</ul>
+          ${dialog.showDetails ? `<details class="report-diagnostic-details" open><summary>重复记录详情</summary><pre>${escapeHtml(dialog.diagnostics.map(formatReportDiagnostic).join('\n'))}</pre></details>` : ''}
+          <div class="dialog-actions report-dialog-actions">
+            <button class="text-button" type="button" data-action="report-warning-cancel">取消</button>
+            <button class="secondary-button" type="button" data-action="report-warning-details"><i data-lucide="list-tree"></i><span>查看详情</span></button>
+            <button class="primary-button" type="button" data-action="report-warning-continue"><i data-lucide="file-output"></i><span>继续导出</span></button>
+          </div>
+        </section>
+      </div>`;
   }
-  const savedToDirectory = await saveBlob(blob, filename);
-  if (!savedToDirectory) showToast(`已导出汇报 ${format.toUpperCase()}`, 'success');
+  if (dialog.kind === 'image-pages') {
+    return `
+      <div class="modal-scrim" role="presentation">
+        <section class="md-dialog report-dialog image-pages-dialog" role="dialog" aria-modal="true" aria-labelledby="image-pages-title">
+          <div class="dialog-icon"><i data-lucide="images"></i></div>
+          <h2 id="image-pages-title">图片报告共 ${dialog.pages.length} 页</h2>
+          <p>为避免移动端生成超大图片，本次异常明细按每页最多 20 条拆分。请选择需要保存的页面。</p>
+          <div class="image-page-list">${dialog.pages.map((page) => `<button class="secondary-button image-page-button" type="button" data-action="save-report-image-page" data-page-number="${page.pageNumber}"><i data-lucide="image-down"></i><span>保存第 ${page.pageNumber}/${page.pageCount} 页</span></button>`).join('')}</div>
+          <div class="dialog-actions"><button class="text-button" type="button" data-action="close-report-dialog">关闭</button></div>
+        </section>
+      </div>`;
+  }
+  return '';
 }
 
-async function copyCheckResults() {
-  const report = getCheckModeReports().join('\n\n');
-  if (!report) {
-    showToast('当前还没有已保存的宿舍结果', 'error');
-    return;
-  }
+async function copyText(value, successMessage) {
+  if (!value) return;
   try {
-    await navigator.clipboard.writeText(report);
-    showToast('本次查寝结果已复制', 'success');
+    await navigator.clipboard.writeText(value);
+    showToast(successMessage, 'success');
   } catch {
     showToast('复制失败，可手动选择预览文字复制', 'error');
   }
 }
 
-async function exportCheckResults(format) {
-  const reports = getCheckModeReports();
-  const report = reports.join('\n\n');
-  if (!report) {
-    showToast('请至少保存一个寝室后再导出', 'error');
+async function saveReportModel(model, format, { pageNumber = null } = {}) {
+  const stem = safeFileName(reportFileStem(model, reportExportStamp()));
+  if (format === 'xlsx') {
+    const plan = planReportXlsxSheet(model);
+    const sheet = XLSX.utils.aoa_to_sheet(plan.rows);
+    sheet['!merges'] = plan.merges;
+    sheet['!cols'] = plan.columns;
+    sheet['!autofilter'] = { ref: plan.autoFilterRef };
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, plan.sheetName);
+    const savedToDirectory = await saveBlob(
+      new Blob([XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `${stem}.xlsx`,
+    );
+    if (!savedToDirectory) showToast('已导出报告 XLSX', 'success');
     return;
   }
-  const date = state.checkMode?.date || state.attendanceDate;
-  const baseName = safeFileName(`查寝汇报_${date}_${state.checkMode?.checkerName || '查寝人'}`);
-  let blob;
-  let filename;
-  if (format === 'png' || format === 'jpg') {
-    blob = await reportToImage(report, format);
-    filename = `${baseName}.${format}`;
-  } else if (format === 'xlsx') {
-    const rows = report.split('\n').map((line, index) => ({ 序号: index + 1, 汇报内容: safeSpreadsheetCell(line) }));
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sheet, '查寝汇报');
-    blob = new Blob([XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    filename = `${baseName}.xlsx`;
-  } else {
-    blob = new Blob([report], { type: 'text/markdown;charset=utf-8' });
-    filename = `${baseName}.md`;
+  if (format === 'md') {
+    const savedToDirectory = await saveBlob(
+      new Blob([renderReportMarkdown(model)], { type: 'text/markdown;charset=utf-8' }),
+      `${stem}.md`,
+    );
+    if (!savedToDirectory) showToast('已导出报告 Markdown', 'success');
+    return;
   }
-  const savedToDirectory = await saveBlob(blob, filename);
-  if (!savedToDirectory) showToast(`已导出本次查寝 ${format.toUpperCase()}`, 'success');
+  const pages = planReportImagePages(model, { exportStamp: reportExportStamp() });
+  const page = pages.find((item) => item.pageNumber === pageNumber) || pages[0];
+  const blob = await renderReportImagePage(page, format);
+  const savedToDirectory = await saveBlob(blob, `${safeFileName(page.filename)}.${format}`);
+  if (!savedToDirectory) showToast(`已导出报告 ${format.toUpperCase()} 第 ${page.pageNumber}/${page.pageCount} 页`, 'success');
 }
 
-function sanitizeBackupPayload(payload) {
-  if (!payload || payload.format !== 'dorm-check-local-backup') {
+function beginReportExport(descriptor) {
+  if (!descriptor) {
+    showToast('请先保存一次查寝，再导出报告', 'error');
+    return;
+  }
+  const result = buildReportFromDescriptor(descriptor);
+  if (!result.ok) {
+    openReportErrorDialog(result.errors, descriptor);
+    return;
+  }
+  const fingerprint = createReportConfirmationFingerprint(result);
+  if (result.warnings.length && !state.confirmedReportFingerprints.has(fingerprint)) {
+    openReportWarningDialog(result, descriptor);
+    return;
+  }
+  if (descriptor.format === 'png' || descriptor.format === 'jpg') {
+    const pages = planReportImagePages(result.model, { exportStamp: reportExportStamp() });
+    if (pages.length > 1) {
+      state.reportDialog = { kind: 'image-pages', descriptor, pages };
+      render();
+      return;
+    }
+  }
+  setBusy(true);
+  saveReportModel(result.model, descriptor.format)
+    .catch((error) => {
+      console.error(error);
+      showToast(error.message || '报告导出失败', 'error');
+    })
+    .finally(() => setBusy(false));
+}
+
+function continueReportExport() {
+  const descriptor = state.reportDialog?.descriptor;
+  const fingerprint = state.reportDialog?.fingerprint;
+  const result = buildReportFromDescriptor(descriptor);
+  if (!result.ok) {
+    openReportErrorDialog(result.errors, descriptor);
+    return;
+  }
+  const currentFingerprint = createReportConfirmationFingerprint(result);
+  if (result.warnings.length && currentFingerprint !== fingerprint) {
+    openReportWarningDialog(result, descriptor);
+    showToast('报告数据已变化，请重新确认重复记录处理。', 'info');
+    return;
+  }
+  state.confirmedReportFingerprints.add(currentFingerprint);
+  state.reportDialog = null;
+  render();
+  beginReportExport(descriptor);
+}
+
+function saveReportImagePage(pageNumber) {
+  const dialog = state.reportDialog;
+  const descriptor = dialog?.descriptor;
+  const result = buildReportFromDescriptor(descriptor);
+  if (!result.ok) {
+    openReportErrorDialog(result.errors, descriptor);
+    return;
+  }
+  const fingerprint = createReportConfirmationFingerprint(result);
+  if (result.warnings.length && !state.confirmedReportFingerprints.has(fingerprint)) {
+    openReportWarningDialog(result, descriptor);
+    return;
+  }
+  const pages = planReportImagePages(result.model, { exportStamp: reportExportStamp() });
+  const page = pages.find((item) => item.pageNumber === Number(pageNumber));
+  if (!page) {
+    showToast('该报告页已不存在，请重新打开导出。', 'error');
+    return;
+  }
+  setBusy(true);
+  saveReportModel(result.model, descriptor.format, { pageNumber: page.pageNumber })
+    .catch((error) => {
+      console.error(error);
+      showToast(error.message || '图片导出失败', 'error');
+    })
+    .finally(() => setBusy(false));
+}
+
+async function copyReport() {
+  const descriptor = currentSingleReportDescriptor();
+  if (!descriptor) return;
+  const result = buildReportFromDescriptor(descriptor);
+  if (!result.ok) {
+    openReportErrorDialog(result.errors, descriptor);
+    return;
+  }
+  await copyText(renderReportMarkdown(result.model), '报告已复制');
+}
+
+async function copyCheckResults() {
+  const descriptor = checkModeReportDescriptor();
+  const result = buildReportFromDescriptor(descriptor);
+  if (!result.ok) {
+    openReportErrorDialog(result.errors, descriptor);
+    return;
+  }
+  await copyText(renderReportMarkdown(result.model), '本次查寝结果已复制');
+}
+
+function exportReport(format) {
+  beginReportExport(currentSingleReportDescriptor(format));
+}
+
+function exportCheckResults(format) {
+  beginReportExport(checkModeReportDescriptor(format));
+}
+async function sanitizeBackupPayload(file) {
+  if (!file || file.format !== 'dorm-check-local-backup') {
     throw new Error('这不是喵喵查寝备份文件');
   }
 
-  const students = Array.isArray(payload.students)
-    ? payload.students
+  // 判断备份格式版本并提取 payload
+  let extractedPayload = file;
+  const backupVersion = file.version || 2; // 默认为版本 2（兼容旧格式）
+
+  if (backupVersion === 3) {
+    // 版本 3 格式：需要从 payload 字段提取，并可选验证完整性
+    if (!file.payload) {
+      throw new Error('备份文件格式损坏（缺少 payload 字段）');
+    }
+    extractedPayload = file.payload;
+
+    // 可选验证：检查完整性校验和
+    if (file.integrity?.payloadSha256 && file.integrity.algorithm === 'SHA-256') {
+      try {
+        const payloadJson = JSON.stringify(extractedPayload);
+        const computedSha256 = await sha256(payloadJson);
+        if (computedSha256 !== file.integrity.payloadSha256) {
+          console.warn('[Backup] 完整性校验失败，但仍继续恢复（可能文件未损坏，仅格式不同）');
+        }
+      } catch (error) {
+        console.warn('[Backup] 无法验证完整性校验和：', error);
+        // 不中断恢复流程，允许继续恢复
+      }
+    }
+  } else if (backupVersion !== 2) {
+    throw new Error(`不支持的备份格式版本：${backupVersion}`);
+  }
+
+  const students = Array.isArray(extractedPayload.students)
+    ? extractedPayload.students
         .filter((item) => item && item.id && item.roomNo && item.name)
         .map((item) => ({
           id: sanitizeImportedValue(item.id, 120),
@@ -1994,8 +2605,8 @@ function sanitizeBackupPayload(payload) {
     : [];
   const studentIds = new Set(students.map((student) => student.id));
 
-  const sessions = Array.isArray(payload.sessions)
-    ? payload.sessions
+  const sessions = Array.isArray(extractedPayload.sessions)
+    ? extractedPayload.sessions
         .filter((item) => item && item.id && item.roomNo && /^\d{4}-\d{2}-\d{2}$/.test(item.businessDate || ''))
         .map((item) => ({
           id: sanitizeImportedValue(item.id, 120),
@@ -2009,8 +2620,8 @@ function sanitizeBackupPayload(payload) {
     : [];
   const sessionIds = new Set(sessions.map((session) => session.id));
 
-  const records = Array.isArray(payload.records)
-    ? payload.records
+  const records = Array.isArray(extractedPayload.records)
+    ? extractedPayload.records
         .filter((item) => item && item.id && sessionIds.has(item.sessionId) && studentIds.has(item.studentId))
         .map((item) => ({
           id: sanitizeImportedValue(item.id, 120),
@@ -2029,7 +2640,7 @@ function sanitizeBackupPayload(payload) {
     throw new Error('备份文件中没有可恢复的数据');
   }
   return {
-    checkerName: sanitizeImportedValue(payload.checkerName, 40),
+    checkerName: sanitizeImportedValue(extractedPayload.checkerName, 40),
     students,
     sessions,
     records,
@@ -2044,7 +2655,7 @@ async function prepareBackupRestore(file) {
   }
   setBusy(true);
   try {
-    const payload = sanitizeBackupPayload(JSON.parse(await file.text()));
+    const payload = await sanitizeBackupPayload(JSON.parse(await file.text()));
     state.backupPreview = {
       payload,
       sourceName: file.name,
@@ -2066,6 +2677,7 @@ async function commitBackupRestore() {
   const preview = state.backupPreview;
   if (!preview?.payload || state.isBusy) return;
   setBusy(true);
+  state.updateGuard.isRestoringBackup = true;
   try {
     const { payload } = preview;
     await Promise.all([
@@ -2076,12 +2688,25 @@ async function commitBackupRestore() {
     ]);
     state.backupPreview = null;
     await refreshData();
+
+    // 记录有意义的活动
+    await recordMeaningfulActivity();
+
+    // 更新最后备份时间
+    await dbPut(STORES.settings, { key: 'lastBackupTime', value: new Date().toISOString() });
+    state.lastBackupTime = new Date();
+
     render();
     showToast('本地备份已合并恢复', 'success');
   } catch (error) {
     console.error(error);
-    showToast('备份恢复失败，本次没有完成写入', 'error');
+    if (error.name === 'QuotaExceededError') {
+      showToast('存储空间不足，恢复失败', 'error');
+    } else {
+      showToast('备份恢复失败，本次没有完成写入', 'error');
+    }
   } finally {
+    state.updateGuard.isRestoringBackup = false;
     setBusy(false);
   }
 }
@@ -2174,17 +2799,6 @@ function installAppUpdate() {
   }
 }
 
-async function copyReport() {
-  const report = document.querySelector('#report-text')?.textContent || '';
-  if (!report) return;
-  try {
-    await navigator.clipboard.writeText(report);
-    showToast('汇报文字已复制', 'success');
-  } catch {
-    showToast('复制失败，可手动选择文字复制', 'error');
-  }
-}
-
 function handleClick(event) {
   const target = event.target.closest('[data-action]');
   if (!target || state.isBusy) return;
@@ -2193,7 +2807,17 @@ function handleClick(event) {
   if (action === 'navigate') {
     state.route = normalizeRoute(target.dataset.route);
     state.historySelectedSessionId = '';
+    state.joinDialogOpen = false;
     render();
+  } else if (action === 'open-join-dialog') {
+    state.joinDialogOpen = true;
+    render();
+  } else if (action === 'close-join-dialog') {
+    state.joinDialogOpen = false;
+    render();
+  } else if (action === 'open-project') {
+    state.joinDialogOpen = false;
+    window.location.href = GITHUB_PROJECT_URL;
   } else if (action === 'start-check-mode') {
     startCheckMode();
   } else if (action === 'confirm-start-check') {
@@ -2211,6 +2835,7 @@ function handleClick(event) {
     const record = ensureDraftRecord(row?.dataset.studentId);
     if (!record || !VALID_STATUSES.has(target.dataset.status)) return;
     record.status = target.dataset.status;
+    if (record.status === 'present') record.remark = '';
     record.updatedAt = new Date().toISOString();
     render();
   } else if (action === 'toggle-remark') {
@@ -2273,6 +2898,13 @@ function handleClick(event) {
     checkAppUpdate();
   } else if (action === 'install-app-update') {
     installAppUpdate();
+  } else if (action === 'install-pwa-update') {
+    if (state.pwaController?.updateServiceWorker) {
+      state.pwaController.updateServiceWorker();
+      state.pwaUpdateAvailable = false;
+      showToast('正在更新应用，请稍候...', 'info');
+      render();
+    }
   } else if (action === 'confirm-restore') {
     commitBackupRestore();
   } else if (action === 'cancel-restore') {
@@ -2286,6 +2918,33 @@ function handleClick(event) {
     deleteRoom(target.dataset.roomNo);
   } else if (action === 'copy-report') {
     copyReport();
+  } else if (action === 'report-error-back') {
+    const scope = state.reportDialog?.descriptor?.scope;
+    state.reportDialog = null;
+    state.route = scope === 'check-mode' ? 'room-select' : state.historySelectedSessionId ? 'history' : 'attendance';
+    render();
+  } else if (action === 'report-error-backup') {
+    state.reportDialog = null;
+    state.route = 'manage';
+    render();
+  } else if (action === 'report-error-copy') {
+    copyText(target.dataset.diagnosticId || '', '诊断编号已复制');
+  } else if (action === 'report-warning-cancel' || action === 'close-report-dialog') {
+    state.reportDialog = null;
+    render();
+  } else if (action === 'report-warning-details') {
+    if (state.reportDialog?.kind === 'warning') state.reportDialog.showDetails = !state.reportDialog.showDetails;
+    render();
+  } else if (action === 'report-warning-continue') {
+    continueReportExport();
+  } else if (action === 'save-report-image-page') {
+    saveReportImagePage(target.dataset.pageNumber);
+  } else if (action === 'dismiss-backup-reminder') {
+    dismissBackupReminder();
+  } else if (action === 'request-persistent-storage') {
+    requestPersistentStorageUser();
+  } else if (action === 'prepare-offline-ocr') {
+    prepareOfflineOcrUser();
   }
 }
 
@@ -2347,9 +3006,83 @@ async function init() {
     await refreshData();
     render();
     handleDragAndDrop();
-    if ('serviceWorker' in navigator && !window.AndroidFileBridge) {
-      navigator.serviceWorker.register('/sw.js').catch((error) => console.warn('service worker unavailable', error));
+
+    // iOS 相关初始化
+    state.iosStandaloneMode = checkIosStandaloneMode();
+    if (state.iosStandaloneMode) {
+      // 检查持久化存储和容量
+      state.persistentStorageGranted = navigator.storage?.persist ? true : false;
+      state.storageEstimate = await updateStorageEstimate();
     }
+
+    // 加载活跃度时间戳和备份提醒状态
+    const settingsStore = await dbGetAll(STORES.settings);
+    const lastActivityRecord = settingsStore.find(r => r.key === 'lastActivityAt');
+    const dismissedRecord = settingsStore.find(r => r.key === 'backupReminderDismissedUntil');
+
+    if (dismissedRecord?.value) {
+      state.backupReminderDismissedUntil = dismissedRecord.value;
+    }
+
+    if (lastActivityRecord?.value) {
+      state.lastActivityAt = lastActivityRecord.value;
+
+      // 检查 5 天备份提醒
+      const now = new Date();
+      const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+      if (new Date(lastActivityRecord.value) < fiveDaysAgo) {
+        const dismissedUntil = dismissedRecord?.value ? new Date(dismissedRecord.value) : null;
+        if (!dismissedUntil || now > dismissedUntil) {
+          // 应该显示备份提醒
+          state.backupReminderDismissedUntil = null;
+        }
+      }
+    }
+
+    const lastBackupRecord = settingsStore.find(r => r.key === 'lastBackupTime');
+    if (lastBackupRecord?.value) {
+      state.lastBackupTime = new Date(lastBackupRecord.value);
+    }
+
+    // 加载 OCR 缓存版本并验证完整性
+    const ocrCacheVersionRecord = settingsStore.find(r => r.key === 'ocrCacheVersion');
+    if (ocrCacheVersionRecord?.value) {
+      state.ocrCacheVersion = ocrCacheVersionRecord.value;
+      // 异步验证缓存完整性，不阻塞初始化
+      checkOcrCacheIntegrity().then((result) => {
+        state.ocrOfflineReady = result.ready;
+        if (!result.ready) {
+          console.warn('[OCR] Cache integrity check failed, missing:', result.missing);
+          // 缓存不完整，清除版本记录
+          state.ocrCacheVersion = null;
+          dbPut(STORES.settings, { key: 'ocrCacheVersion', value: null })
+            .catch(e => console.warn('[OCR] Failed to clear corrupted version:', e));
+        }
+      }).catch((error) => {
+        console.warn('[OCR] Failed to verify cache integrity:', error);
+      });
+    }
+
+    // 注册 PWA Service Worker
+    state.pwaController = await registerCatCheckPwa({
+      onOfflineReady() {
+        // 首次缓存完成，可显示离线可用提示
+        console.info('[App] Offline capability ready');
+      },
+      onNeedRefresh() {
+        // 新版本可用，显示更新 banner
+        state.pwaUpdateAvailable = true;
+        render();
+      },
+      updateGuard: state.updateGuard,
+    });
+
+    // 监听可见性变化，重新检查 iOS standalone 状态
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        state.iosStandaloneMode = checkIosStandaloneMode();
+      }
+    });
   } catch (error) {
     console.error(error);
     app.innerHTML = `<div class="fatal-error"><h1>本地数据库无法打开</h1><p>请使用支持 IndexedDB 的现代浏览器重新打开应用。</p></div>`;

@@ -8,7 +8,7 @@
 
 **按寝查寝，数据本地保存，只修改异常人员**
 
-[![Version](https://img.shields.io/badge/Version-v1.2.1-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases)
+[![Version](https://img.shields.io/badge/Version-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases)
 [![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
 [![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
 [![Data](https://img.shields.io/badge/Data-%E6%9C%AC%E5%9C%B0%E4%BC%98%E5%85%88-167D78.svg?style=flat-square)](README.md)
@@ -37,6 +37,13 @@ CatCheck（默认显示中文名：**喵喵查寝**）是一个移动端优先�
 - 支持浏览器/PWA 使用，也支持 Kotlin Android 离线壳直接安装。
 
 不导入、不保存、不导出学号。名单数据模型只包含 `roomNo`、`name`、`className` 和本地可选的 `isCommuter`（走读）标记。
+
+## 最新移动端安装包
+
+当前可安装移动端版本为 **v1.2.3**。本次把 Android APK 和 iOS WebView 包重绘为设计稿中的浅青 Material 3 界面，同时保留顶部双层导航：应用图标、**喵喵查寝**、圆形 GitHub 入口，以及 **今日 / 历史 / 名单**。GitHub 入口会打开 **加入我们** 弹窗，通过 **查看项目** 按钮跳转仓库，不在界面中直接展示地址。
+
+安装包会随 GitHub Release 上传；本地交付校验值保存在 [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt)。
+
 
 ## 使用流程
 
@@ -126,6 +133,8 @@ npm run build
 
 | 版本 | 概要 |
 | --- | --- |
+| `1.2.3` | 将 Android APK 与 iOS WebView 包重绘为设计稿中的浅青 Material 3 界面，保留顶部双层导航，并加入 GitHub“加入我们”弹窗和“查看项目”按钮。 |
+| `1.2.1` | 将官方更新清单固定在 Android 原生代码中，移除用户可编辑的更新地址，同时保留 HTTPS、APK 大小/哈希/签名校验与系统确认安装。 |
 | `1.2.0` | 加入自建应用内更新：HTTPS 更新清单、APK 大小/哈希/签名校验、系统确认安装和本地发布清单生成脚本。 |
 | `1.1.4` | 加固本地状态与路由；保存/下一寝紧贴名单末尾；改善输入法下的查寝人弹窗稳定性。 |
 | `1.1.3` | 调整双层顶栏与名单页寝室管理导航。 |
@@ -133,9 +142,10 @@ npm run build
 | `1.1.1` | 稳定 Android 启动和内置 WebView 加载路径。 |
 | `1.1.0` | 改为 CatCheck / 喵喵查寝品牌，加入猫咪图标和移动端安全区适配。 |
 | `1.0.0` | 加入结构化名单导入导出、本地 OCR、汇报文字、JSON 备份和多格式汇报。 |
+| `0.2.0` | Material Design 3 重构完成：语义化设计令牌、排版、阴影和组件样式。新增离线 OCR 资源缓存、改进 PWA Service Worker，以及存储配额管理。 |
 | `0.1.0` | 初始离线 PWA 原型：按寝名单、点名、历史、本地存储。 |
 
-JavaScript 包版本仍为 `0.1.0`；Android 的 `versionCode`/`versionName` 用于标识可安装的移动版本。表格记录的是产品里程碑，并不代表上传二进制安装包。
+JavaScript 包版本（`0.x.x`）现已独立于 Android 产品版本；详见 [CHANGELOG.md](CHANGELOG.md)。Android 的 `versionCode`/`versionName` 用于标识可安装的移动版本。表格记录的是产品里程碑，并不代表上传二进制安装包。
 
 ## 贡献
 
