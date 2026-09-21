@@ -720,7 +720,7 @@ function renderStartDialog() {
         <h2 id="start-check-title">开始查寝</h2>
         <p>请输入本次查寝人姓名，保存后将进入宿舍选择。</p>
         <label class="field-label dialog-field">查寝人姓名
-          <input type="text" id="start-checker-name" value="${escapeHtml(state.checkerName)}" maxlength="20" placeholder="例如：张三" autofocus />
+          <input type="text" id="start-checker-name" value="${escapeHtml(state.checkerName)}" maxlength="20" placeholder="例如：查寝员甲" autofocus />
         </label>
         ${state.startDialogError ? `<p class="dialog-error"><i data-lucide="circle-alert"></i>${escapeHtml(state.startDialogError)}</p>` : ''}
         <div class="dialog-actions">
