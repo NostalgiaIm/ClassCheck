@@ -1,9 +1,9 @@
 <resources>
-    <style name="Theme.ClassCheck" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.CatCheck" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#127C78</item>
-        <item name="android:navigationBarColor">#F4F7FB</item>
-        <item name="android:statusBarColor">#F4F7FB</item>
+        <item name="android:navigationBarColor">#EEF6F4</item>
+        <item name="android:statusBarColor">#EEF6F4</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
     </style>

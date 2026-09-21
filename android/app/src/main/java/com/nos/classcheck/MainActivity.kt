@@ -34,7 +34,7 @@ class MainActivity : Activity() {
         webView = WebView(this)
         // Keep the centered start-check dialog stable while the soft keyboard is visible.
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-        webView.setBackgroundColor(Color.rgb(244, 247, 251))
+        webView.setBackgroundColor(Color.rgb(238, 246, 244))
         webView.setOnApplyWindowInsetsListener { _, insets ->
             @Suppress("DEPRECATION")
             navigationBarInsetBottom = insets.systemWindowInsetBottom
@@ -120,7 +120,16 @@ class MainActivity : Activity() {
         }
 
         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-            return request?.url?.host != ASSET_HOST
+            val uri = request?.url ?: return false
+            if (uri.host == ASSET_HOST) return false
+            if (uri.scheme == "http" || uri.scheme == "https") {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, uri))
+                } catch (_: Exception) {
+                    Toast.makeText(this@MainActivity, "无法打开项目链接", Toast.LENGTH_SHORT).show()
+                }
+            }
+            return true
         }
 
         private fun openAsset(path: String): WebResourceResponse? {
