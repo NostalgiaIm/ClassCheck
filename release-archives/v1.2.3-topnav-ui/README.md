@@ -12,7 +12,11 @@
 
 ## 交付文件
 
-- `files/CatCheck-M3-TopNav-v1.2.3.apk`
-- `files/CatCheck-iOS-M3-TopNav-v1.2.3.zip`
+- `files/CatCheck-M3-TopNav-v1.2.3.apk`：Android 10+ 安装包。
+- `files/CatCheck-iOS-M3-TopNav-v1.2.3.zip`：iOS SwiftPM/WKWebView 源码包，内置同步后的 Web 资源。
+
+## iOS 包使用说明
+
+解压 `CatCheck-iOS-M3-TopNav-v1.2.3.zip` 后，用 Xcode 15 或更新版本打开其中的 `ios/CatCheck/Package.swift`。该包支持 iOS 16+，通过 WKWebView 加载内置 `Resources/www/index.html`，不需要运行开发服务器。真机安装、TestFlight 或 App Store 分发需要维护者在 Xcode 中配置自己的 Apple Developer 团队和签名。
 
 校验值见 `CHECKSUMS.txt`。源码提交不会包含 APK/zip；这些文件用于本地归档和 GitHub Release 附件。

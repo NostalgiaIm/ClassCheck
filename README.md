@@ -9,7 +9,8 @@
 **Local-first, fast, and built for exception-only check-ins**
 
 [![Release](https://img.shields.io/badge/Release-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)
-[![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
+[![Android](https://img.shields.io/badge/Android-10%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
+[![iOS](https://img.shields.io/badge/iOS-16%2B-000000.svg?style=flat-square&logo=apple)](ios/CatCheck/)
 [![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
 [![Data](https://img.shields.io/badge/Data-Offline--first-167D78.svg?style=flat-square)](README.zh-CN.md)
 
@@ -34,16 +35,15 @@ CatCheck (default Chinese name: **喵喵查寝**) is a mobile-first, offline dor
 - Generate reports with expected, present, leave counts, and leave names grouped by class.
 - Export rosters as XLSX, CSV, Markdown, or JSON; export reports as Markdown, PNG, JPG, or XLSX.
 - Keep history, JSON backup and restore, and optionally save to a browser-selected archive directory with download fallback.
-- Install as a local Android app through the Kotlin WebView shell, or use the browser/PWA build.
+- Install through the local Android WebView shell, run the iOS SwiftPM/WKWebView package, or use the browser/PWA build.
 
 No student number is collected. The roster model is deliberately limited to `roomNo`, `name`, `className`, and the optional local `isCommuter` marker.
 
 ## Latest Mobile Build
 
-The current installable mobile build is **v1.2.3**. It redraws the Android APK and iOS WebView package with the pale-teal Material 3 interface used in the design mockups while keeping the two-row top navigation: app icon, **喵喵查寝**, a circular GitHub entry, then **Today / History / Roster**. The GitHub entry opens an **Join us** dialog and exposes the repository through a **View project** button instead of printing the URL in the UI.
+The current installable mobile build is **v1.2.3**. It redraws the Android APK and iOS WebView package with the pale-teal Material 3 interface used in the design mockups while keeping the two-row top navigation: app icon, **喵喵查寝**, a circular GitHub entry, then **Today / History / Roster**. The GitHub entry opens a **Join us** dialog and exposes the repository through a **View project** button instead of printing the URL in the UI.
 
-The published [GitHub Release v1.2.3](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3) includes the Android APK and iOS WebView package. Local delivery checksums are kept in [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt).
-
+The published [GitHub Release v1.2.3](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3) includes `CatCheck-M3-TopNav-v1.2.3.apk` for Android and `CatCheck-iOS-M3-TopNav-v1.2.3.zip` for the iOS SwiftPM/WKWebView package. Local delivery checksums are kept in [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt).
 
 ## Workflow
 
@@ -69,9 +69,16 @@ Android shell (Kotlin)
   ├── WebView loads bundled web assets
   ├── Android system picker imports local files
   └── MediaStore saves exports to Downloads/喵喵查寝
+
+iOS package (SwiftPM + WKWebView)
+  ├── SwiftUI app entry in ios/CatCheck/WebSources
+  ├── WKWebView loads bundled www/index.html
+  └── Bundled web resources mirror the Android APK UI
 ```
 
 The Android shell targets Android 10+ (API 29), uses an internal WebView URL for packaged assets, and has no network permission in the baseline build. Browser directory selection depends on browser support; a normal file download is used when it is unavailable.
+
+The iOS package targets iOS 16+, is opened from [`ios/CatCheck/Package.swift`](ios/CatCheck/Package.swift), and loads the bundled web build from `ios/CatCheck/WebSources/Resources/www` through WKWebView. The release zip is a source package; signing, provisioning, TestFlight, and App Store distribution are handled in Xcode with the maintainer's Apple Developer account.
 
 ## Run the Web App
 
@@ -103,7 +110,14 @@ npm run check
 
 The debug output is normally `android/app/build/outputs/apk/debug/app-debug.apk`. Do not commit that file or any signing material.
 
-See the [mobile architecture note](README-移动端选型.md) and [phone guide](README-手机使用.md) for practical usage.
+## Build iOS
+
+1. Install Xcode 15 or newer.
+2. Use the release asset `CatCheck-iOS-M3-TopNav-v1.2.3.zip` for the ready iOS source package, or build the web app and sync the generated files into `ios/CatCheck/WebSources/Resources/www`.
+3. Open [`ios/CatCheck/Package.swift`](ios/CatCheck/Package.swift) in Xcode.
+4. Select an iOS 16+ simulator or device, then run and sign it with your Apple Developer team for device installation, TestFlight, or App Store delivery.
+
+See the [mobile architecture note](README-移动端选型.md), [phone guide](README-手机使用.md), and [iOS package README](ios/CatCheck/README.md) for practical usage.
 
 ## Privacy and Data Safety
 
@@ -151,7 +165,9 @@ Useful contributions include accessibility checks, device testing, better OCR fi
 - [Chinese README](README.zh-CN.md)
 - [Phone usage guide](README-手机使用.md)
 - [Mobile technology choice](README-移动端选型.md)
+- [iOS SwiftPM package](ios/CatCheck/)
 - [Test assets and results](tests/README.md)
+
 ## In-App Android Updates
 
 The Android app checks a fixed, maintainer-controlled HTTPS update manifest from the roster screen. Users only choose “Check for updates”; no editable manifest address is shown, stored, or passed from the web UI. The browser/PWA build does not request updates.

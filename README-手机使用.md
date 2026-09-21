@@ -29,6 +29,17 @@
 
 在“名单”导出 JSON 备份；换手机后通过“恢复备份”先查看数量再确认。清除应用数据、卸载应用或清理浏览器站点数据都会删除未备份内容。
 
+## iOS 包方式
+
+Release 附件 `CatCheck-iOS-M3-TopNav-v1.2.3.zip` 提供 iOS SwiftPM/WKWebView 源码包，界面与 Android APK 使用同一套内置 Web 资源。它不是可直接安装的 IPA；需要用 Xcode 打开、签名后运行到模拟器或真机。
+
+1. 解压 `CatCheck-iOS-M3-TopNav-v1.2.3.zip`，或直接使用仓库中的 `ios/CatCheck/`。
+2. 安装 Xcode 15 或更新版本。
+3. 用 Xcode 打开 `ios/CatCheck/Package.swift`。
+4. 选择 iOS 16+ 模拟器运行；如果要装到真机、TestFlight 或 App Store，需要配置自己的 Apple Developer 团队和签名。
+
+iOS 包使用 WKWebView 加载内置资源，名单、历史、OCR 和导出仍保存在设备本地。由于 iOS 对文件系统和导出的权限策略与 Android 不同，真机发布前应重点复测导入、导出、备份恢复和离线打开。
+
 ## 浏览器/PWA 方式
 
 此方式适合调试或临时使用。电脑和手机在同一 Wi-Fi 时，在电脑项目目录运行：
@@ -50,4 +61,4 @@ npm run dev -- --host 0.0.0.0 --port 5180
 | 换设备后名单不见了 | 在旧设备导出 JSON 备份，在新设备恢复。 |
 | 手机打不开电脑服务 | 确认同一 Wi-Fi、使用电脑 IPv4 和正确端口，并检查防火墙。 |
 | 浏览器没有安装选项 | 使用 HTTPS 地址并让页面完整加载一次；仍可直接在浏览器中使用。 |
-
+| iOS 包不能直接安装 | Release 中提供的是 SwiftPM/WKWebView 源码包，不是 IPA；请用 Xcode 打开 `ios/CatCheck/Package.swift` 并完成签名。 |

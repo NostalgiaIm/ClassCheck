@@ -9,7 +9,8 @@
 **按寝查寝，数据本地保存，只修改异常人员**
 
 [![Release](https://img.shields.io/badge/Release-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)
-[![Platform](https://img.shields.io/badge/Platform-Android%2010%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
+[![Android](https://img.shields.io/badge/Android-10%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
+[![iOS](https://img.shields.io/badge/iOS-16%2B-000000.svg?style=flat-square&logo=apple)](ios/CatCheck/)
 [![Web](https://img.shields.io/badge/Web-PWA-4F8DF7.svg?style=flat-square)](public/manifest.webmanifest)
 [![Data](https://img.shields.io/badge/Data-%E6%9C%AC%E5%9C%B0%E4%BC%98%E5%85%88-167D78.svg?style=flat-square)](README.md)
 
@@ -34,7 +35,7 @@ CatCheck（默认显示中文名：**喵喵查寝**）是一个移动端优先�
 - 自动生成“X月X日Y寝（查寝人）/ 应到、实到、请假”以及按班级列出的请假人。
 - 名单可导出 XLSX、CSV、Markdown、JSON；汇报可导出 Markdown、PNG、JPG、XLSX。
 - 本地历史、JSON 备份恢复，以及支持浏览器选择存档目录（不支持时自动下载）。
-- 支持浏览器/PWA 使用，也支持 Kotlin Android 离线壳直接安装。
+- 支持 Kotlin Android 离线壳、iOS SwiftPM/WKWebView 包和浏览器/PWA 使用。
 
 不导入、不保存、不导出学号。名单数据模型只包含 `roomNo`、`name`、`className` 和本地可选的 `isCommuter`（走读）标记。
 
@@ -42,8 +43,7 @@ CatCheck（默认显示中文名：**喵喵查寝**）是一个移动端优先�
 
 当前可安装移动端版本为 **v1.2.3**。本次把 Android APK 和 iOS WebView 包重绘为设计稿中的浅青 Material 3 界面，同时保留顶部双层导航：应用图标、**喵喵查寝**、圆形 GitHub 入口，以及 **今日 / 历史 / 名单**。GitHub 入口会打开 **加入我们** 弹窗，通过 **查看项目** 按钮跳转仓库，不在界面中直接展示地址。
 
-已发布 [GitHub Release v1.2.3](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)，其中包含 Android APK 与 iOS WebView 包；本地交付校验值保存在 [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt)。
-
+已发布 [GitHub Release v1.2.3](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)，其中包含 Android 安装包 `CatCheck-M3-TopNav-v1.2.3.apk` 和 iOS SwiftPM/WKWebView 包 `CatCheck-iOS-M3-TopNav-v1.2.3.zip`；本地交付校验值保存在 [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt)。
 
 ## 使用流程
 
@@ -69,9 +69,16 @@ Android 壳（Kotlin）
   ├── WebView 加载 APK 内置 Web 资源
   ├── 系统文件选择器导入本地文件
   └── MediaStore 保存到 下载/喵喵查寝
+
+iOS 包（SwiftPM + WKWebView）
+  ├── SwiftUI 入口位于 ios/CatCheck/WebSources
+  ├── WKWebView 加载内置 www/index.html
+  └── 内置 Web 资源与 Android APK 界面保持一致
 ```
 
 当前 Android 壳支持 Android 10（API 29）及以上，使用内部 WebView 地址加载资源；基线版本不申请网络权限。浏览器的存档目录能力取决于浏览器支持情况，不能使用时会回退为普通下载。
+
+iOS 包支持 iOS 16 及以上，从 [`ios/CatCheck/Package.swift`](ios/CatCheck/Package.swift) 打开，使用 WKWebView 加载 `ios/CatCheck/WebSources/Resources/www` 中的内置 Web 构建产物。Release 中的 zip 是源码包；真机签名、描述文件、TestFlight 或 App Store 分发需要在 Xcode 中使用维护者自己的 Apple Developer 账号配置。
 
 ## 启动网页版
 
@@ -103,7 +110,14 @@ npm run check
 
 调试 APK 通常位于 `android/app/build/outputs/apk/debug/app-debug.apk`。不要提交 APK 或签名材料。
 
-实际手机操作见[手机使用说明](README-手机使用.md)，技术取舍见[移动端选型](README-移动端选型.md)。
+## 构建 iOS
+
+1. 安装 Xcode 15 或更新版本。
+2. 直接使用 Release 附件 `CatCheck-iOS-M3-TopNav-v1.2.3.zip` 可获得已同步 Web 资源的 iOS 源码包；从源码重新构建时，需要先构建 Web 应用，再把生成文件同步到 `ios/CatCheck/WebSources/Resources/www`。
+3. 用 Xcode 打开 [`ios/CatCheck/Package.swift`](ios/CatCheck/Package.swift)。
+4. 选择 iOS 16+ 模拟器或真机运行；真机安装、TestFlight 或 App Store 分发需要使用自己的 Apple Developer 团队完成签名配置。
+
+实际手机操作见[手机使用说明](README-手机使用.md)，技术取舍见[移动端选型](README-移动端选型.md)，iOS 包结构见 [iOS 包说明](ios/CatCheck/README.md)。
 
 ## 隐私与数据整洁性
 
@@ -120,6 +134,7 @@ Android 安装包在原生代码中固定了官方 HTTPS 更新清单地址。�
 检查时会验证 HTTPS、包名、递增版本号、APK 文件大小、SHA-256 与签名证书；安装仍由 Android 系统确认。名单、查寝记录、导出文件和本地备份不会随更新请求上传。
 
 维护者发布更新时，需要提高 Android `versionCode`/`versionName`，生成 APK 和对应清单，并更新固定清单地址指向的 JSON 文件。
+
 ## 测试
 
 ```bash
@@ -158,4 +173,5 @@ JavaScript 包版本（`0.x.x`）现已独立于 Android 产品版本；详见 [
 - [English README](README.md)
 - [手机使用说明](README-手机使用.md)
 - [移动端选型](README-移动端选型.md)
+- [iOS SwiftPM 包](ios/CatCheck/)
 - [测试资料与结果](tests/README.md)
