@@ -1,0 +1,84 @@
+name: Bug report / 缺陷反馈
+description: Report a reproducible CatCheck issue with synthetic data only.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve CatCheck. If this is a security or privacy vulnerability, do not submit this public issue. Follow SECURITY.md and use a private report instead.
+
+        感谢反馈 CatCheck 问题。如果这是安全或隐私漏洞，请不要提交公开 Issue，请按 SECURITY.md 使用私密渠道报告。
+
+  - type: checkboxes
+    id: privacy-confirmation
+    attributes:
+      label: Sensitive data check / 敏感数据确认
+      description: Issues containing real rosters, attendance records, keys, signing material, or private backups may be deleted.
+      options:
+        - label: I confirm that I have removed all real rosters, attendance records, student data, screenshots with personal information, keys, signing files, APKs, and private backups. / 我确认已删除所有真实名单、查寝记录、学生信息、含个人信息的截图、密钥、签名文件、APK 和私有备份。
+          required: true
+        - label: I used fake sample data only. / 我只使用了虚构样本数据。
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / 版本
+      description: Example: v1.2.3, Tedab branch commit SHA, or local build date.
+      placeholder: v1.2.3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform / 平台
+      multiple: true
+      options:
+        - Android APK
+        - iOS WKWebView package
+        - Browser / PWA
+        - Local development server
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: What happened? / 问题现象
+      description: Describe the visible behavior. Do not paste real student data.
+      placeholder: The app shows ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps / 复现步骤
+      description: Use fake names, fake class names, and fake room numbers only.
+      placeholder: |
+        1. Import a fake roster with ...
+        2. Open ...
+        3. Tap ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior / 期望行为
+      placeholder: I expected ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes / 补充说明
+      description: Redact logs and screenshots before attaching. Do not upload APKs, keys, backups, or real roster files.
+      placeholder: Any extra context, using fake data only.
+    validations:
+      required: false
+
