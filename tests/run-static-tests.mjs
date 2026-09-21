@@ -16,7 +16,7 @@ const exists = (relativePath) => fs.existsSync(path.join(root, relativePath));
 const normal = parseTextRecords(read('tests/fixtures/学生名单_正常.csv'), 'normal.csv');
 assert.equal(normal.rows.length, 4, '正常 CSV 应解析出 4 条记录');
 assert.equal(normal.rows[0].roomNo, '101');
-assert.equal(normal.rows[0].className, '计算机应用技术1班');
+assert.equal(normal.rows[0].className, '示例班级A');
 
 const text = parseTextRecords(read('tests/fixtures/学生名单_文本.txt'), 'text.txt');
 assert.equal(text.rows.length, 3, '文本名单应解析出 3 条记录');
@@ -34,7 +34,7 @@ assert.ok(!read('src/main.js').includes('innerHTML = `<div>${html.rows[0].name}<
 const formula = parseTextRecords('宿舍号,姓名,班级\n101,=HYPERLINK("x"),1班', 'formula.csv');
 assert.equal(formula.rows.length, 0, '公式样式姓名不得进入名单');
 
-const tooManyRows = Array.from({ length: MAX_IMPORT_ROWS + 20 }, (_, index) => `101,学生${index},${index},1班`).join('\n');
+const tooManyRows = Array.from({ length: MAX_IMPORT_ROWS + 20 }, (_, index) => `101,示例学生${index},示例班级A`).join('\n');
 const limited = parseTextRecords(tooManyRows, 'large.txt');
 assert.equal(limited.rows.length, MAX_IMPORT_ROWS, '导入行数应受上限保护');
 
@@ -42,7 +42,7 @@ const reportSession = (id, roomNo = 'A301', businessDate = '2026-09-20') => ({
   id,
   roomNo,
   businessDate,
-  checkerName: '李老师',
+  checkerName: '查寝员甲',
   status: 'completed',
 });
 const reportRecord = (sessionId, studentId, status, extras = {}) => ({
