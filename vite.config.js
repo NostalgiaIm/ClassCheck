@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // Base URL 可通过环境变量 CATCHECK_BASE_URL 配置（用于 GitHub Pages 子路径）
-// 默认为根路径 '/'，GitHub Pages 项目页改为 '/ClassCheck/'
+// 默认为根路径 '/'，GitHub Pages 项目页改为 '/CatCheck/'
 const base = process.env.CATCHECK_BASE_URL || '/';
 const normalizedBase = base.endsWith('/') ? base : `${base}/`;
 

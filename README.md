@@ -8,7 +8,7 @@
 
 **Local-first, fast, and built for exception-only check-ins**
 
-[![Release](https://img.shields.io/badge/Release-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)
+[![Release](https://img.shields.io/badge/Release-v1.2.4-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/CatCheck/releases/tag/v1.2.4)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-10%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
 [![iOS](https://img.shields.io/badge/iOS-16%2B-000000.svg?style=flat-square&logo=apple)](ios/CatCheck/)
@@ -42,9 +42,9 @@ No student number is collected. The roster model is deliberately limited to `roo
 
 ## Latest Mobile Build
 
-The current installable mobile build is **v1.2.3**. It redraws the Android APK and iOS WebView package with the pale-teal Material 3 interface used in the design mockups while keeping the two-row top navigation: app icon, **喵喵查寝**, a circular GitHub entry, then **Today / History / Roster**. The GitHub entry opens a **Join us** dialog and exposes the repository through a **View project** button instead of printing the URL in the UI.
+The current installable mobile build is **v1.2.4**. This maintenance release keeps the v1.2.3 pale-teal Material 3 Android/iOS UI and updates the project destination, release metadata, and in-app update source to the CatCheck repository. The GitHub entry still opens a **Join us** dialog and exposes the repository through a **View project** button.
 
-The published [GitHub Release v1.2.3](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3) includes `CatCheck-M3-TopNav-v1.2.3.apk` for Android and `CatCheck-iOS-M3-TopNav-v1.2.3.zip` for the iOS SwiftPM/WKWebView package. Local delivery checksums are kept in [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt).
+The published [GitHub Release v1.2.4](https://github.com/NostalgiaIm/CatCheck/releases/tag/v1.2.4) contains the Android APK and iOS SwiftPM/WKWebView package for this repository.
 
 ## Workflow
 
@@ -114,7 +114,7 @@ The debug output is normally `android/app/build/outputs/apk/debug/app-debug.apk`
 ## Build iOS
 
 1. Install Xcode 15 or newer.
-2. Use the release asset `CatCheck-iOS-M3-TopNav-v1.2.3.zip` for the ready iOS source package, or build the web app and sync the generated files into `ios/CatCheck/WebSources/Resources/www`.
+2. Use the release asset `CatCheck-iOS-v1.2.4.zip` for the ready iOS source package, or build the web app and sync the generated files into `ios/CatCheck/WebSources/Resources/www`.
 3. Open [`ios/CatCheck/Package.swift`](ios/CatCheck/Package.swift) in Xcode.
 4. Select an iOS 16+ simulator or device, then run and sign it with your Apple Developer team for device installation, TestFlight, or App Store delivery.
 
@@ -141,6 +141,7 @@ Test cases, fixtures, and recorded results are in [tests/](tests/README.md). Aut
 
 | Version | Summary |
 | --- | --- |
+| `1.2.4` | Migrated project links, update metadata, and the in-app GitHub destination to the CatCheck repository; refreshed the Android/iOS release package references. |
 | `1.2.3` | Repainted the Android APK and iOS WebView package to match the pale-teal Material 3 mockups, kept the two-row top navigation, and added the GitHub "Join us" dialog with a "View project" button. |
 | `1.2.1` | Made the official update manifest a fixed Android setting, removed the editable update address, and retained HTTPS, APK size/hash/signature checks, and system-confirmed installation. |
 | `1.2.0` | Added self-hosted in-app Android updates with HTTPS manifests, APK size/hash/signature verification, system-confirmed installation, and a local manifest generator. |

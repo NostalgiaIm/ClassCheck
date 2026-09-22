@@ -1,6 +1,6 @@
 # CatCheck iOS Package
 
-This directory contains the iOS SwiftPM/WKWebView package for CatCheck / 喵喵查寝. It embeds the same web bundle used by the Android v1.2.3 top-navigation build, so the pale-teal Material 3 UI, GitHub "Join us" dialog, and Today / History / Roster navigation stay consistent across mobile targets.
+This directory contains the iOS SwiftPM/WKWebView package for CatCheck / 喵喵查寝. It embeds the same web bundle used by the Android v1.2.4 top-navigation build, so the pale-teal Material 3 UI, GitHub "Join us" dialog, and Today / History / Roster navigation stay consistent across mobile targets.
 
 ## Requirements
 
@@ -28,7 +28,7 @@ ios/CatCheck
 3. For a physical device, set your Team, Bundle Identifier, and signing profile in Xcode.
 4. Run the `CatCheck` target.
 
-The GitHub Release asset `CatCheck-iOS-M3-TopNav-v1.2.3.zip` already contains the synced `Resources/www` files. It is a source package, not a ready-to-install IPA.
+The GitHub Release asset `CatCheck-iOS-v1.2.4.zip` already contains the synced `Resources/www` files. It is a source package, not a ready-to-install IPA.
 
 ## Refresh bundled web files
 
@@ -36,7 +36,7 @@ When the web UI changes, rebuild the web app and replace `WebSources/Resources/w
 
 # CatCheck iOS 包说明
 
-本目录是 CatCheck / 喵喵查寝 的 iOS SwiftPM/WKWebView 包。它内置与 Android v1.2.3 顶部导航版本相同的 Web 构建产物，因此浅青 Material 3 配色、GitHub“加入我们”弹窗，以及“今日 / 历史 / 名单”导航在移动端保持一致。
+本目录是 CatCheck / 喵喵查寝 的 iOS SwiftPM/WKWebView 包。它内置与 Android v1.2.4 顶部导航版本相同的 Web 构建产物，因此浅青 Material 3 配色、GitHub“加入我们”弹窗，以及“今日 / 历史 / 名单”导航在移动端保持一致。
 
 ## 环境要求
 
@@ -64,7 +64,7 @@ ios/CatCheck
 3. 如需安装到真机，请在 Xcode 中配置 Team、Bundle Identifier 和签名描述文件。
 4. 运行 `CatCheck` target。
 
-GitHub Release 附件 `CatCheck-iOS-M3-TopNav-v1.2.3.zip` 已包含同步好的 `Resources/www` 文件。它是源码包，不是可直接安装的 IPA。
+GitHub Release 附件 `CatCheck-iOS-v1.2.4.zip` 已包含同步好的 `Resources/www` 文件。它是源码包，不是可直接安装的 IPA。
 
 ## 刷新内置 Web 文件
 

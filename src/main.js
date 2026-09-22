@@ -23,7 +23,7 @@ import './style.css';
 
 const DB_NAME = 'dorm-check-local';
 const DB_VERSION = 3;
-const GITHUB_PROJECT_URL = 'https://github.com/NostalgiaIm/ClassCheck';
+const GITHUB_PROJECT_URL = 'https://github.com/NostalgiaIm/CatCheck';
 
 const STORES = {
   students: 'students',

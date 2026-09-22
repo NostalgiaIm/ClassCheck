@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security or privacy vulnerability / 安全或隐私漏洞
-    url: https://github.com/NostalgiaIm/ClassCheck/security/policy
+    url: https://github.com/NostalgiaIm/CatCheck/security/policy
     about: Please do not open a public issue for security problems or real student data. Follow SECURITY.md instead. / 请不要公开提交安全问题或真实学生数据，请按 SECURITY.md 私下报告。

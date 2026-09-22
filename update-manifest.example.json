@@ -1,11 +1,10 @@
 {
   "format": "catcheck-update-v1",
-  "versionCode": 8,
-  "versionName": "1.2.1",
+  "versionCode": 11,
+  "versionName": "1.2.4",
   "packageName": "com.nos.classcheck",
   "apkUrl": "https://example.com/catcheck/CatCheck.apk",
   "sha256": "REPLACE_WITH_UPPERCASE_APK_SHA256",
   "signingCertSha256": "REPLACE_WITH_UPPERCASE_SIGNING_CERT_SHA256",
   "size": 0
 }
-
