@@ -16,7 +16,7 @@ Security fixes are handled for the latest published release and the current deve
 
 Please do not open a public GitHub Issue for vulnerabilities, privacy problems, real rosters, attendance records, keys, signing files, or exploit details.
 
-Use GitHub's private vulnerability reporting or security advisory flow when available: <https://github.com/NostalgiaIm/ClassCheck/security/advisories/new>
+Use GitHub's private vulnerability reporting or security advisory flow when available: <https://github.com/NostalgiaIm/CatCheck/security/advisories/new>
 
 If private reporting is not available to you, contact the maintainer through their GitHub profile first and request a private channel. In any public message, include only a short, non-sensitive summary such as "I need to report a private security issue". Do not attach screenshots, rosters, backups, APK signing material, or logs containing real student data.
 
@@ -49,6 +49,6 @@ CatCheck / 喵喵查寝是本地优先的查寝工具，可能会被用于处理
 
 请不要用公开 Issue 提交漏洞细节、隐私问题、真实名单、查寝记录、密钥、签名文件或可利用细节。
 
-优先使用 GitHub 的私密漏洞报告或安全通告流程：<https://github.com/NostalgiaIm/ClassCheck/security/advisories/new>
+优先使用 GitHub 的私密漏洞报告或安全通告流程：<https://github.com/NostalgiaIm/CatCheck/security/advisories/new>
 
 如果你无法使用私密报告，请先通过维护者 GitHub 主页联系并请求私密沟通渠道。任何公开留言都只写不含敏感信息的简短说明，例如“我需要私下报告一个安全问题”。不要附带真实名单、备份、截图、APK 签名材料或包含学生数据的日志。

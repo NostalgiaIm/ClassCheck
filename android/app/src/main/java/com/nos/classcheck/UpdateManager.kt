@@ -416,7 +416,7 @@ class UpdateManager(private val context: Context) {
         private const val STATE_INSTALLING = "installing"
         private const val STATE_ERROR = "error"
         private const val MANIFEST_FORMAT = "catcheck-update-v1"
-        private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/NostalgiaIm/ClassCheck/Tedab/updates/latest.json"
+        private const val UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/NostalgiaIm/CatCheck/Tedab/updates/latest.json"
         private const val UPDATE_DIRECTORY = "catcheck-update"
         private const val PENDING_APK_NAME = "CatCheck.apk"
         private const val MAX_MANIFEST_URL_LENGTH = 500

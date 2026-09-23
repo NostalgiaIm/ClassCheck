@@ -8,7 +8,7 @@
 
 **按寝查寝，数据本地保存，只修改异常人员**
 
-[![Release](https://img.shields.io/badge/Release-v1.2.3-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)
+[![Release](https://img.shields.io/badge/Release-v1.2.4-2563EB.svg?style=flat-square&logo=github)](https://github.com/NostalgiaIm/CatCheck/releases/tag/v1.2.4)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-10%2B-3DDC84.svg?style=flat-square&logo=android)](android/)
 [![iOS](https://img.shields.io/badge/iOS-16%2B-000000.svg?style=flat-square&logo=apple)](ios/CatCheck/)
@@ -42,9 +42,9 @@ CatCheck（默认显示中文名：**喵喵查寝**）是一个移动端优先�
 
 ## 最新移动端安装包
 
-当前可安装移动端版本为 **v1.2.3**。本次把 Android APK 和 iOS WebView 包重绘为设计稿中的浅青 Material 3 界面，同时保留顶部双层导航：应用图标、**喵喵查寝**、圆形 GitHub 入口，以及 **今日 / 历史 / 名单**。GitHub 入口会打开 **加入我们** 弹窗，通过 **查看项目** 按钮跳转仓库，不在界面中直接展示地址。
+当前可安装移动端版本为 **v1.2.4**。本次维护保留 v1.2.3 的浅青 Material 3 Android/iOS 界面，并将项目入口、发布元数据和应用内更新源迁移到 CatCheck 仓库。GitHub 入口仍会打开 **加入我们** 弹窗，通过 **查看项目** 按钮跳转仓库。
 
-已发布 [GitHub Release v1.2.3](https://github.com/NostalgiaIm/ClassCheck/releases/tag/v1.2.3)，其中包含 Android 安装包 `CatCheck-M3-TopNav-v1.2.3.apk` 和 iOS SwiftPM/WKWebView 包 `CatCheck-iOS-M3-TopNav-v1.2.3.zip`；本地交付校验值保存在 [`release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt`](release-archives/v1.2.3-topnav-ui/CHECKSUMS.txt)。
+已发布 [GitHub Release v1.2.4](https://github.com/NostalgiaIm/CatCheck/releases/tag/v1.2.4)，其中包含本仓库对应的 Android 安装包和 iOS SwiftPM/WKWebView 源码包。
 
 ## 使用流程
 
@@ -114,7 +114,7 @@ npm run check
 ## 构建 iOS
 
 1. 安装 Xcode 15 或更新版本。
-2. 直接使用 Release 附件 `CatCheck-iOS-M3-TopNav-v1.2.3.zip` 可获得已同步 Web 资源的 iOS 源码包；从源码重新构建时，需要先构建 Web 应用，再把生成文件同步到 `ios/CatCheck/WebSources/Resources/www`。
+2. 直接使用 Release 附件 `CatCheck-iOS-v1.2.4.zip` 可获得已同步 Web 资源的 iOS 源码包；从源码重新构建时，需要先构建 Web 应用，再把生成文件同步到 `ios/CatCheck/WebSources/Resources/www`。
 3. 用 Xcode 打开 [`ios/CatCheck/Package.swift`](ios/CatCheck/Package.swift)。
 4. 选择 iOS 16+ 模拟器或真机运行；真机安装、TestFlight 或 App Store 分发需要使用自己的 Apple Developer 团队完成签名配置。
 
@@ -149,6 +149,7 @@ npm run build
 
 | 版本 | 概要 |
 | --- | --- |
+| `1.2.4` | 将项目链接、应用内更新清单和 GitHub 入口迁移到 CatCheck 仓库，并更新 Android/iOS 发布包说明。 |
 | `1.2.3` | 将 Android APK 与 iOS WebView 包重绘为设计稿中的浅青 Material 3 界面，保留顶部双层导航，并加入 GitHub“加入我们”弹窗和“查看项目”按钮。 |
 | `1.2.1` | 将官方更新清单固定在 Android 原生代码中，移除用户可编辑的更新地址，同时保留 HTTPS、APK 大小/哈希/签名校验与系统确认安装。 |
 | `1.2.0` | 加入自建应用内更新：HTTPS 更新清单、APK 大小/哈希/签名校验、系统确认安装和本地发布清单生成脚本。 |

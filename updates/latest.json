@@ -1,10 +1,10 @@
 {
   "format": "catcheck-update-v1",
-  "versionCode": 8,
-  "versionName": "1.2.1",
+  "versionCode": 11,
+  "versionName": "1.2.4",
   "packageName": "com.nos.classcheck",
-  "apkUrl": "https://github.com/NostalgiaIm/ClassCheck/releases/download/v1.2.1/CatCheck.apk",
-  "sha256": "B55C2BEF631CADFC3A87D1079503DB43D57D400CA0E8D8AF2ED010FEC4D181A8",
+  "apkUrl": "https://github.com/NostalgiaIm/CatCheck/releases/download/v1.2.4/CatCheck.apk",
+  "sha256": "48CFC5193A8FA0BE06791016C951CE9A61902D0033437EA4BD6165C3E1E2CFE4",
   "signingCertSha256": "DD99127857B93DB30EA36AF55B475B08DA3B76A732E7A26A08932E6F0792A440",
-  "size": 19808646
+  "size": 17808490
 }
